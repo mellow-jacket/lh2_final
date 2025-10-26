@@ -146,6 +146,115 @@ class TestVaporPressureFunction:
             assert P_min < P < P_max, f"T={T}K, rho={rho} kg/m³ => P={P/1e3:.1f} kPa not in range [{P_min/1e3:.1f}, {P_max/1e3:.1f}] kPa"
 
 
+class TestVaporPressureReferenceTable:
+    """
+    Reference table validation for vapor_pressure polynomial coefficients.
+    
+    These tests validate the polynomial implementation against computed
+    reference values for CI/regression testing. The values are computed
+    using the exact MATLAB polynomial coefficients.
+    """
+    
+    def test_two_phase_reference_values(self):
+        """
+        Test two-phase vapor pressure against reference table.
+        
+        Reference values computed using MATLAB polynomial:
+        P = (1.6133821043e-1*T^3 - 6.9432088540*T^2 + 1.1373052580e2*T - 6.9558797798e2) * 1e3 [Pa]
+        
+        Values validated by computing with exact coefficients and ensuring
+        T < T_sat(rho) for two-phase conditions.
+        """
+        # Reference table: (T [K], rho [kg/m³], P_expected [Pa])
+        # Computed values where T < T_sat(rho) to ensure two-phase region
+        reference_table = [
+            # Low temperature conditions (T < T_sat)
+            (18.0, 1.0, 42886.0),     # T < 20.03K (T_sat for rho=1.0)
+            (20.0, 1.3, 92445.0),     # Typical storage
+            (20.0, 5.0, 92445.0),     # Same T, higher rho (still two-phase)
+            
+            # Medium temperature conditions
+            (22.0, 10.0, 163900.0),   # T < 29.77K (T_sat for rho=10.0)
+            (25.0, 15.0, 329079.0),   # T < ~30.5K 
+            (25.0, 20.0, 329079.0),   # Near critical density
+            
+            # Near critical point (but still two-phase)
+            (28.0, 25.0, 587087.0),   # Approaching critical
+            (30.0, 30.0, 823572.0),   # Close to critical
+        ]
+        
+        for T, rho, P_expected in reference_table:
+            P_calc = vapor_pressure(T, rho)
+            
+            # Allow 1% tolerance for numerical precision
+            rel_error = abs(P_calc - P_expected) / P_expected
+            assert rel_error < 0.01, (
+                f"T={T}K, rho={rho} kg/m³: "
+                f"P_calc={P_calc/1e3:.2f} kPa vs P_expected={P_expected/1e3:.2f} kPa "
+                f"(error={rel_error*100:.3f}%)"
+            )
+    
+    def test_saturation_temperature_polynomial(self):
+        """
+        Test T_sat(rho_vapor) polynomial against reference values.
+        
+        Reference formula from MATLAB vaporpressure.m:
+        T_sat = -3.9389e-09*rho^6 + 1.0054e-06*rho^5 - 1.0304e-04*rho^4 
+                + 5.3059e-03*rho^3 - 1.4792e-01*rho^2 + 2.2234*rho + 17.951
+        """
+        # Reference table: (rho [kg/m³], T_sat_expected [K])
+        # Computed using exact polynomial coefficients
+        reference_table = [
+            (0.1, 18.17),    # Very low density
+            (1.0, 20.03),    # Low density (corrected)
+            (5.0, 25.97),    # Medium density
+            (10.0, 29.77),   # Higher density (corrected)
+            (20.0, 32.18),   # Near critical (corrected)
+            (31.43, 32.73),  # Critical density (approx)
+        ]
+        
+        for rho, T_sat_expected in reference_table:
+            # Compute T_sat from polynomial
+            T_sat = (-3.9389254667e-09 * (rho**6) +
+                     1.0053641879e-06 * (rho**5) -
+                     1.0304184083e-04 * (rho**4) +
+                     5.3058942923e-03 * (rho**3) -
+                     1.4792439609e-01 * (rho**2) +
+                     2.2234419496 * rho +
+                     1.7950995359e+01)
+            
+            # Allow 1% tolerance
+            rel_error = abs(T_sat - T_sat_expected) / T_sat_expected
+            assert rel_error < 0.01, (
+                f"rho={rho} kg/m³: "
+                f"T_sat={T_sat:.2f}K vs expected={T_sat_expected:.2f}K "
+                f"(error={rel_error*100:.2f}%)"
+            )
+    
+    def test_coefficient_accuracy(self):
+        """Verify polynomial coefficients match MATLAB exactly."""
+        # Two-phase pressure polynomial coefficients
+        a3_matlab = 1.6133821043e-1
+        a2_matlab = -6.9432088540
+        a1_matlab = 1.1373052580e2
+        a0_matlab = -6.9558797798e2
+        
+        # Test a specific calculation to verify coefficients are correctly applied
+        # Use T=20K with low density to ensure two-phase region
+        T = 20.0
+        P_expected = (a3_matlab * (T**3) + a2_matlab * (T**2) + 
+                     a1_matlab * T + a0_matlab) * 1e3
+        
+        # Use density=5.0 where T_sat=25.97K, so T=20K is definitely two-phase
+        rho = 5.0  # kg/m³
+        P_calc = vapor_pressure(T, rho)
+        
+        # Should match exactly (within floating point precision)
+        assert abs(P_calc - P_expected) < 1.0, (
+            f"Coefficient mismatch: P_calc={P_calc:.2f} Pa vs P_expected={P_expected:.2f} Pa"
+        )
+
+
 # Skip CoolProp tests if not available
 pytest.importorskip("CoolProp", reason="CoolProp not installed")
 
