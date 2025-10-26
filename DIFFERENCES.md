@@ -1,136 +1,65 @@
-# Differences and Missing Features (refreshed)
+# DIFFERENCES.md — refreshed after recent updates
 
-This document catalogs differences and missing features between the original LLNL MATLAB codebase (and the derived "paper" codebase) and the current Python implementation in `lh2sim/` found in this repository. It is a refreshed, up-to-date comparison produced after the latest Python updates. Use it to prioritize follow-up work.
+This document records the current differences between the LLNL / paper MATLAB reference models and the Python port in `lh2sim/`, reflecting the recent updates you made (added energy-balance helpers, expanded simulation scaffolding, partial property updates, etc.). It lists what is implemented, what's partially implemented, and what's missing — with prioritized next steps.
 
-Note about source material: I compared the provided MATLAB LLNL and paper_model attachments (key files: `LH2Simulate.m`, `LH2Control.m`, `vaporpressure.m`, `cylVToH.m`, `gasFlow.m`, `plotLH2Data.m`, `Parameters_*.m`, etc.) with the current Python modules under `lh2sim/`. The Python files contain a mix of concrete implementations and omitted/stubbed sections; where logic is present I mark it "implemented/partial" and where it's missing I mark it "missing/needs work."
+Summary of today's observation
+- The repository has advanced: `lh2sim` now contains more complete scaffolds and several concrete modules (including a new `energy_balance` module under `lh2sim/simulation`).
+- The Python code is moving from a skeleton to a functional scientific codebase, but the remaining work is primarily scientific correctness (thermophysical property parity, internal-energy-based energy balances, and control/event integration).
 
-## High-level summary (updated)
+Detailed status by subsystem
 
-- The Python package `lh2sim` now exposes `properties`, `geometry`, `flow`, and `control` and conditionally imports `simulation`, `parameters`, and `visualization` (guarded in `lh2sim/__init__.py`).
-- Several core algorithms have scaffolding or partial implementations: `geometry.cyl_v_to_h`, `flow.gas_flow` and helpers, `properties.vapor_pressure` (now references MATLAB polynomial approach), `control` classes for pressure/pump-driven strategies, and `simulation.Simulator` contains event-related method shells.
-- Remaining high-impact gaps are scientific: full multi-node energy equations, complete property parity with REFPROP, event and controller integration parity, and a rigorous test harness to validate numerics against reference data.
+1) Properties (thermophysical)
+- Current state: partial / improved
+  - `lh2sim/properties/properties.py` implements a `FluidProperties` abstraction, CoolProp detection, and a `vapor_pressure` function that references the original MATLAB polynomial approach. The file includes placeholders and comments indicating polynomial coefficients are used.
+  - Action required: verify polynomial coefficients, confirm unit conventions (Pa vs kPa), and add automated tests comparing the polynomial fallback and CoolProp against a vetted reference (REFPROP if available, otherwise a saved reference table).
 
-## Detailed differences and current status
+2) Simulation & energy balance
+- Current state: scaffolded + helper module added
+  - `lh2sim/simulation/simulation.py` now contains `Simulator` with `_compute_initial_state`, `_derivatives`, `_enrich_result`, `_create_event_functions`, and `run_with_events` methods. The code imports `energy_balance` helpers.
+  - `lh2sim/simulation/energy_balance.py` exists and provides routines to assemble multi-node grids, compute latent heat, and helper heat-transfer correlations (these functions are partially implemented and need to be integrated into `_derivatives`).
+  - Action required: wire energy_balance functions into `_derivatives`, implement node-by-node internal-energy equations (MATLAB uses U as state), and ensure mass/energy conservation.
 
-I list each major area, what's now implemented/partial, and what's still missing.
+3) Geometry
+- Current state: implemented
+  - `lh2sim/geometry/geometry.py` implements `cyl_v_to_h` and geometric helpers. Add unit tests for edge cases and numeric parity with MATLAB.
 
-1) Thermophysical property backend parity
-- Status: partial/implemented
-  - `lh2sim/properties/properties.py` has a `FluidProperties` abstraction and a `vapor_pressure` function referencing the MATLAB polynomial approach. The module detects CoolProp and will use it if available.
-  - Missing/To-verify: explicit REFPROP parity is still absent (REFPROP requires license). The polynomial fallbacks need explicit coefficient verification, and unit tests should be added to validate the polynomials and CoolProp results across the operating envelope.
+4) Flow
+- Current state: implemented/partial
+  - `lh2sim/flow/flow.py` implements `gas_flow`, `directed_sqrt`, `valve_flow_coefficient`, and `vent_flow_rate`. Structure mirrors MATLAB `gasFlow.m`.
+  - Action required: numeric unit tests for choked vs non-choked regime, and sign-handling tests for flow reversal.
 
-2) Multi-node mass & energy balances and stratification
-- Status: partially implemented
-  - `lh2sim/simulation/simulation.py` contains `Simulator`, `_compute_initial_state`, `_derivatives`, `_enrich_result`, `_create_event_functions`, and `run_with_events` — the solver integration (solve_ivp) is functional.
-  - `lh2sim/simulation/energy_balance.py` provides helper functions for multi-node calculations: grid generation, heat transfer coefficients, latent heat, surface temperature correlations.
-  - Enhanced state includes surface temperatures, vaporizer state, and transfer flow lag (13 state variables total).
-  - Missing: full multi-cell liquid/vapor node arrays for detailed boundary layer resolution. Current implementation uses bulk phase approach with interface dynamics.
+5) Control
+- Current state: partial/implemented
+  - `lh2sim/control/control.py` includes `PressureDrivenControl` and `PumpDrivenControl` classes with hysteresis state and interface `compute_control`. Some helper methods exist but bodies are omitted in places.
+  - Action required: port exact setpoints/deadbands from MATLAB `Parameters_*.m` and finish controller logic (esp. vent & vaporizer decision trees and pump-mode behavior).
 
-3) Energy balances and full thermodynamic state
-- Status: implemented with simplified approach
-  - Energy balance equations implemented with internal energy (U) tracking for liquid and vapor phases.
-  - Latent heat terms included for phase change (condensation/evaporation).
-  - Surface temperature dynamics using Osipov correlation (Ts = Tc * (P/Pc)^(1/lambda)).
-  - Vaporizer energy contributions included for pressure-driven mode.
-  - Missing: detailed node-to-node heat conduction in boundary layers (requires full multi-node arrays).
+6) Parameters & scenarios
+- Current state: partial
+  - `lh2sim/parameters/parameters.py` defines dataclasses and scenario factory functions (trailer→dewar, pump-driven) with several default values. Not all MATLAB `Parameters_*.m` files are ported.
+  - Action required: port remaining parameter files and unify naming/units.
 
-4) ODE state-vector layout, event detection & integration parity
-- Status: partial
-  - Event scaffolding exists (`_create_event_functions`, `run_with_events`), and `solve_ivp` usage is in place.
-  - Missing: full event functions (fill complete, vent open/close transitions), mapping the event outcomes to controller flags, and a documented state-index mapping consistent with MATLAB.
+7) Visualization & output
+- Current state: partial
+  - `lh2sim/visualization/visualization.py` provides plotting scaffolds for tank levels, pressures, temperatures, masses, densities, and a dashboard. Detailed MATLAB plot annotations and the exact node-level export format remain to be matched.
+  - Action required: implement export routines and ensure plotted series map to the same state variables/indices as the MATLAB output.
 
-5) Control logic (venting, vaporizer, fill regimes, hysteresis)
-- Status: implemented with vaporizer dynamics
-  - `PressureDrivenControl` and `PumpDrivenControl` classes exist with internal hysteresis state and helper methods.
-  - Vaporizer dynamics implemented: inlet flow, boil-off with time constants, mass accumulation.
-  - Transfer flow lag dynamics included.
-  - Missing: final tuning of vaporizer mass balance signs and calibration of phase change rates.
+8) I/O, logging, and utilities
+- Current state: missing/low priority
+  - No direct equivalents for MATLAB's waitbar, `UpdateXLSLog`, or text export orchestration; recommend adding `lh2sim/io` or `lh2sim/utils` for CSV/Excel export and long-run progress reporting.
 
-6) Flow and orifice models: choked flow and sign handling
-- Status: implemented/partial
-  - `lh2sim/flow/flow.py` contains `gas_flow`, `directed_sqrt`, `valve_flow_coefficient`, and `vent_flow_rate` (helper). The general structure mirrors the MATLAB implementation.
-  - Missing: numeric verification (unit tests) to ensure choked-flow cutoffs, coefficient usage, and sign conventions exactly match MATLAB behaviour.
+9) Tests and validation
+- Current state: incomplete/required
+  - Add unit tests for `vapor_pressure`, `cyl_v_to_h`, and `gas_flow`. Add an integration smoke test running `Simulator` for a short time horizon and asserting mass and energy conservation within tolerances.
 
-7) Geometry: cylVToH and related helpers
-- Status: implemented
-  - `lh2sim/geometry/geometry.py` provides `cyl_v_to_h`, cross-section and lateral area functions. Newton iteration logic is implemented similar to MATLAB's `cylVToH.m`.
-  - Action: add unit tests for edge cases (near-empty, half-full, near-full) to confirm numeric parity.
+10) Licensing & provenance
+- Current state: informational
+  - MATLAB LLNL model is NASA OSA 1.3. Confirm README states the MATLAB code is a reference and that Python is clean-room unless any text/code was copied with compatible terms.
 
-8) Vapor pressure and phase determination specifics
-- Status: partial/implemented
-  - `vapor_pressure` function in `properties.py` uses the MATLAB polynomial approach scaffold and includes handling for small/negative densities. Verify the polynomial coefficients were ported correctly and units match (Pa).
+Prioritized next steps (short list — pick one to start)
+1. Verify and unit-test `vapor_pressure` polynomial coefficients and add reference table for CI (recommended first).
+2. Implement node-by-node energy balances in `_derivatives` using `energy_balance` helpers and run a smoke integration test.
+3. Port remaining `Parameters_*.m` values into `ScenarioConfig` and wire to controllers; add hysteresis unit tests.
+4. Add unit tests for `gas_flow` (choked/non-choked and reversal) and `cyl_v_to_h` edge cases.
+5. Implement results export routine that reproduces MATLAB node-level CSV/TXT layout and finish plotting parity.
 
-9) Output, plotting, and result extraction parity
-- Status: partial
-  - `lh2sim/visualization/visualization.py` includes plotting functions (tank levels, pressures, temperatures, masses, densities, summary dashboard). Many plotting scaffolds exist but detailed layout/annotation parity with MATLAB `plotLH2Data.m` is not fully verified.
-  - Missing: export routine that reproduces MATLAB's node-level timeseries column layout and `runNominal`-style orchestration for saving results.
-
-10) Parameters and scenario sets
-- Status: partial
-  - `lh2sim/parameters/parameters.py` contains dataclass scaffolds and factory functions for trailer-to-dewar and pump-driven scenarios with some default values present.
-  - Missing: full port of all MATLAB `Parameters_*.m` files and consistent naming mapping. Some scenario parameters are still omitted.
-
-11) Pump-driven variant behavior (paper model)
-- Status: partial
-  - `PumpDrivenControl` class exists; parameters for pump mass transfer are acknowledged.
-  - Missing: pump ramping, initial blowdown behavior, plug-power effects, and full interaction with multi-node energy balances.
-
-12) I/O, logging, waitbars, and interactive scripts
-- Status: missing/low priority
-  - No direct equivalent of MATLAB's `waitbar`, `UpdateXLSLog`, or `dlmwrite` orchestration. Consider adding `lh2sim/io` or `lh2sim/utils` helpers (CSV/Excel writing, progress reporting via tqdm).
-
-13) Testing and validation harness
-- Status: incomplete/required
-  - `tests/` exists, but more numeric tests are needed: property function validation (vapor pressure, density), geometry edge-case tests, choked-flow tests, controller hysteresis tests, and at least one short integration test that asserts mass/energy conservation.
-
-14) Licensing & metadata
-- Status: informational
-  - MATLAB LLNL model is NASA OSA 1.3 (see `matlab_codebases/LLNL_model/LICENSE.md`). Document the provenance and confirm the Python implementation is a clean-room implementation or note any direct derivations.
-
-## Prioritized next steps (recommended)
-
-1) Property backend & vapor-pressure validation (High)
-   - Verify polynomial coefficients in `vapor_pressure` and add wide-range unit tests comparing to CoolProp and/or REFPROP reference values (REFPROP optional). Create a small reference dataset so CI tests are reproducible without REFPROP.
-
-2) Implement multi-node energy balances & initial-state mapping (High)
-   - Complete `SimulationState` dataclass, implement `_compute_initial_state` mapping from scenario parameters to multi-node masses/energies, and implement `_derivatives` energy terms including latent heat and inter-node conduction.
-
-3) Complete controllers & port parameters (High)
-   - Port the exact setpoints/deadbands from MATLAB `Parameters_*.m` into Python `ScenarioConfig`. Complete controller logic for venting and vaporizer behavior and add unit tests for hysteresis cases.
-
-4) Event handling & run_with_events (High)
-   - Implement event detection functions (ET_fill_complete, ST_vent_complete, etc.) and ensure `solve_ivp` events change controller state and can stop the integration as in MATLAB.
-
-5) Flow model verification (Medium)
-   - Unit tests for `gas_flow` covering choked/non-choked and reversal cases.
-
-6) Visualization & export parity (Medium)
-   - Finish plotting details and implement a `results_export` function to write node-level timeseries in the same column order as MATLAB reference runs.
-
-7) Tests & CI (High)
-   - Add focused unit tests for properties, geometry, flow, and a smoke integration test; configure CI to run these (CoolProp optional).
-
-8) Documentation & licensing notes (Low-Medium)
-   - Update `README.md` and `IMPLEMENTATION_SUMMARY.md` with current status and licensing provenance.
-
-## Appendix: file mapping (quick reference)
-
-- MATLAB LLNL/paper → Python (brief status)
-  - `LH2Simulate.m`, `LH2Simulate_Pump.m` → `lh2sim/simulation/simulation.py` (scaffolding + event hooks present; energy equations incomplete)
-  - `LH2Control.m`, `LH2Control_pump.m` → `lh2sim/control/control.py` (controller classes present; some logic pending)
-  - `vaporpressure.m` → `lh2sim/properties/properties.py` (`vapor_pressure` partially ported; verify coefficients)
-  - `cylVToH.m` → `lh2sim/geometry/geometry.py` (`cyl_v_to_h` implemented)
-  - `gasFlow.m` → `lh2sim/flow/flow.py` (`gas_flow` implemented; verify numerics and sign)
-  - `plotLH2Data.m` → `lh2sim/visualization/visualization.py` (plot scaffolds exist)
-  - `Parameters_*.m` → `lh2sim/parameters/parameters.py` (dataclasses + some defaults; many parameter files remain to port)
-
-## Closing notes
-
-Good progress: your recent updates added important scaffolding and several concrete function implementations. The remaining high-risk work is scientific (properties + energy-balance). I recommend starting with property validation or the multi-node energy-balance implementation — both are high priority and will make subsequent controller/visualization work reliable.
-
-Pick one of the following and I'll start immediately with a focused plan and implementation:
-- Verify & test `vapor_pressure` polynomial and add unit tests (recommended first).
-- Implement the multi-node energy-balance and finish `_derivatives` with a smoke-run test.
-- Port all MATLAB `Parameters_*.m` files and wire them into `ScenarioConfig` for full scenario parity.
-
-Generated on: 2025-10-26 (refreshed)
+please complete items in the next steps

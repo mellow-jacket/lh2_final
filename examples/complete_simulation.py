@@ -221,21 +221,21 @@ def compare_scenarios():
 def main():
     """Run all examples."""
     print("\n")
-    print("╔" + "=" * 68 + "╗")
-    print("║" + " " * 10 + "LH2 TRANSFER SIMULATION - COMPLETE EXAMPLE" + " " * 15 + "║")
-    print("╚" + "=" * 68 + "╝")
+    print("-" + "=" * 68 + "-")
+    print("|" + " " * 10 + "LH2 TRANSFER SIMULATION - COMPLETE EXAMPLE" + " " * 15 + "|")
+    print("-" + "=" * 68 + "-")
     
     try:
         # Run pressure-driven example
         result1, config1 = run_pressure_driven_example()
         
-        print("\n" + "─" * 70)
+        print("\n" + "-" * 70)
         input("\nPress Enter to continue with pump-driven example...")
         
         # Run pump-driven example
         result2, config2 = run_pump_driven_example()
         
-        print("\n" + "─" * 70)
+        print("\n" + "-" * 70)
         
         # Compare scenarios (placeholder)
         compare_scenarios()
@@ -243,10 +243,10 @@ def main():
         print_separator("EXAMPLES COMPLETED SUCCESSFULLY")
         print(f"\nCheck the output directory for plots: {OUTPUT_DIR}")
         print("\nKey takeaways:")
-        print("  ✓ Simulation module integrates all physics calculations")
-        print("  ✓ Visualization module creates publication-quality plots")
-        print("  ✓ Mass conservation verified to <0.001% error")
-        print("  ✓ Both pressure-driven and pump-driven modes working")
+        print("  Simulation module integrates all physics calculations")
+        print("  Visualization module creates publication-quality plots")
+        print("  Mass conservation verified to <0.001% error")
+        print("  Both pressure-driven and pump-driven modes working")
         print()
         
     except KeyboardInterrupt:

@@ -27,46 +27,135 @@ Initial Conditions:
 
 Running simulation...
 
+Simulation Summary:
+  Total time: 3600.0 s (60.00 min)
+  Time steps: 4020
+  Success: True
+  Message: The solver successfully reached the end of the integration interval.
+  Function evaluations: 12880
 
-Error during simulation: array must not contain infs or NaNs
+Mass Transfer:
+  Supply Tank initial: 1151.6 kg
+  Supply Tank final: 249.7 kg
+  Mass transferred: 901.9 kg
+  End Tank initial: 150.6 kg
+  End Tank final: 1033.0 kg
+  Mass received: 882.4 kg
+  Transfer efficiency: 97.83%
 
-(venv) C:\Projects\h2_twins\the_last>python examples\complete_simulation.py > output.txt
-C:\Projects\h2_twins\the_last\lh2sim\simulation\simulation.py:399: RuntimeWarning: overflow encountered in scalar multiply
-  T_v_receiver = state.U_v_receiver / (state.m_v_receiver * self.config.physics.c_v_vapor)
-C:\Projects\h2_twins\the_last\lh2sim\simulation\simulation.py:404: RuntimeWarning: overflow encountered in scalar multiply
-  p_receiver = state.m_v_receiver * self.config.physics.R_vapor * T_v_receiver / V_v_receiver
-C:\Projects\h2_twins\the_last\lh2sim\simulation\simulation.py:404: RuntimeWarning: invalid value encountered in scalar multiply
-  p_receiver = state.m_v_receiver * self.config.physics.R_vapor * T_v_receiver / V_v_receiver
-Traceback (most recent call last):
-  File "C:\Projects\h2_twins\the_last\examples\complete_simulation.py", line 230, in main 
-    result1, config1 = run_pressure_driven_example()
-                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Projects\h2_twins\the_last\examples\complete_simulation.py", line 119, in run_pressure_driven_example
-    result = simulator.run(t_end=3600, max_step=10.0)  # 1 hour max, 10s max step
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Projects\h2_twins\the_last\lh2sim\simulation\simulation.py", line 632, in run  
-    sol = solve_ivp(**kwargs)
-          ^^^^^^^^^^^^^^^^^^^
-  File "C:\Projects\h2_twins\the_last\venv\Lib\site-packages\scipy\integrate\_ivp\ivp.py", line 655, in solve_ivp
-    message = solver.step()
-              ^^^^^^^^^^^^^
-  File "C:\Projects\h2_twins\the_last\venv\Lib\site-packages\scipy\integrate\_ivp\base.py", line 197, in step
-    success, message = self._step_impl()
-                       ^^^^^^^^^^^^^^^^^
-  File "C:\Projects\h2_twins\the_last\venv\Lib\site-packages\scipy\integrate\_ivp\bdf.py", line 363, in _step_impl
-    LU = self.lu(self.I - c * J)
-         ^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Projects\h2_twins\the_last\venv\Lib\site-packages\scipy\integrate\_ivp\bdf.py", line 232, in lu
-    return lu_factor(A, overwrite_a=True)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Projects\h2_twins\the_last\venv\Lib\site-packages\scipy\_lib\_util.py", line 1233, in wrapper
-    return f(*arrays, *other_args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Projects\h2_twins\the_last\venv\Lib\site-packages\scipy\linalg\_decomp_lu.py", line 109, in lu_factor
-    a1 = asarray_chkfinite(a)
-         ^^^^^^^^^^^^^^^^^^^^
-  File "C:\Projects\h2_twins\the_last\venv\Lib\site-packages\numpy\lib\_function_base_impl.py", line 665, in asarray_chkfinite
-    raise ValueError(
-ValueError: array must not contain infs or NaNs
+Conservation Check:
+  Total initial mass: 1302.2 kg
+  Total final mass: 1282.7 kg
+  Mass conservation error: 1.499773%
+
+Final End Tank State:
+  Fill level: 79.1%
+  Liquid mass: 1010.0 kg
+  Vapor mass: 23.0 kg
+  Pressure: 5.178 bar
+  Temperature: 20.89 K
+
+Generating plots...
+  Saved: pressure_driven_tank_levels.png
+  Saved: pressure_driven_pressures.png
+  Saved: pressure_driven_temperatures.png
+  Saved: pressure_driven_masses.png
+  Saved: pressure_driven_dashboard.png
+
+All plots saved to: C:\Projects\h2_twins\the_last\examples\output
+
+----------------------------------------------------------------------
+
+Press Enter to continue with pump-driven example...
+======================================================================
+ PUMP-DRIVEN TRANSFER SIMULATION
+======================================================================
+
+Scenario: Pump-Driven Transfer
+  - Controlled mass flow via pump
+  - No vaporizer needed
+  - Different control strategy
+
+Initial Conditions:
+  Supply Tank:
+    - Liquid mass: 1148.6 kg
+    - Temperature: 21.0 K
+  End Tank:
+    - Liquid mass: 127.6 kg
+    - Height: 5.7 m
+  Transfer Mode: Pump-driven
+    - Slow fill rate: 127.6 kg/hr
+    - Fast fill rate: 510.5 kg/hr
+    - Topping rate: 76.6 kg/hr
+
+Running simulation...
+
+Simulation Summary:
+  Total time: 3600.0 s (60.00 min)
+  Time steps: 432
+  Success: True
+  Message: The solver successfully reached the end of the integration interval.
+  Function evaluations: 864
+
+Mass Transfer:
+  Supply Tank initial: 1151.6 kg
+  Supply Tank final: 1024.0 kg
+  Mass transferred: 127.6 kg
+  End Tank initial: 150.6 kg
+  End Tank final: 278.2 kg
+  Mass received: 127.6 kg
+  Transfer efficiency: 100.00%
+
+Conservation Check:
+  Total initial mass: 1302.2 kg
+  Total final mass: 1302.2 kg
+  Mass conservation error: 0.000000%
+
+Final End Tank State:
+  Fill level: 20.0%
+  Liquid mass: 255.2 kg
+  Vapor mass: 23.0 kg
+  Pressure: 1.350 bar
+  Temperature: 20.52 K
+
+Generating plots...
+  Saved: pump_driven_dashboard.png
+
+All plots saved to: C:\Projects\h2_twins\the_last\examples\output
+
+----------------------------------------------------------------------
+
+======================================================================
+ SCENARIO COMPARISON
+======================================================================
+
+This would compare:
+  - Transfer time
+  - Energy consumption
+  - Pressure profiles
+  - Venting losses
+
+(Detailed comparison in future examples)
+
+======================================================================
+ EXAMPLES COMPLETED SUCCESSFULLY
+======================================================================
+
+Check the output directory for plots: C:\Projects\h2_twins\the_last\examples\output
+
+Key takeaways:
+  Simulation module integrates all physics calculations
+  Visualization module creates publication-quality plots
+  Mass conservation verified to <0.001% error
+  Both pressure-driven and pump-driven modes working
+
+additional copy/paste from cmd
+
+(venv) C:\Projects\h2_twins\the_last>python examples\complete_simulation.py > output.txt  
+C:\Projects\h2_twins\the_last\venv\Lib\site-packages\scipy\integrate\_ivp\common.py:357: RuntimeWarning: overflow encountered in multiply
+  h_new = (y[ind] + new_factor * y_scale[ind]) - y[ind]
+C:\Projects\h2_twins\the_last\lh2sim\visualization\visualization.py:100: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  plt.tight_layout()
+
 
 (venv) C:\Projects\h2_twins\the_last>
