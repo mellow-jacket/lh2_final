@@ -1,0 +1,103 @@
+=================================== warnings summary ==================================== 
+tests/unit/test_visualization.py::TestPlotTankLevels::test_basic_plot
+tests/unit/test_visualization.py::TestPlotTankLevels::test_save_plot
+tests/unit/test_visualization.py::TestPlotTankLevels::test_custom_figsize
+tests/unit/test_visualization.py::TestPlotEdgeCases::test_single_point_result
+  C:\Projects\h2_twins\the_last\lh2sim\visualization\__init__.py:100: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+    plt.tight_layout()
+
+tests/unit/test_visualization.py::TestPlotEdgeCases::test_single_point_result
+  C:\Projects\h2_twins\the_last\lh2sim\visualization\__init__.py:58: UserWarning: Attempting to set identical low and high xlims makes transformation singular; automatically expanding.
+    ax.set_xlim([0, time_min[-1]])
+
+tests/unit/test_visualization.py::TestPlotEdgeCases::test_single_point_result
+  C:\Projects\h2_twins\the_last\lh2sim\visualization\__init__.py:75: UserWarning: Attempting to set identical low and high xlims makes transformation singular; automatically expanding.
+    ax.set_xlim([0, time_min[-1]])
+
+tests/unit/test_visualization.py::TestPlotEdgeCases::test_single_point_result
+  C:\Projects\h2_twins\the_last\lh2sim\visualization\__init__.py:94: UserWarning: Attempting to set identical low and high xlims makes transformation singular; automatically expanding.
+    ax.set_xlim([0, time_min[-1]])
+
+tests/unit/test_visualization.py::TestPlotEdgeCases::test_single_point_result
+  C:\Projects\h2_twins\the_last\lh2sim\visualization\__init__.py:158: UserWarning: Attempting to set identical low and high xlims makes transformation singular; automatically expanding.
+    ax.set_xlim([0, time_min[-1]])
+
+tests/unit/test_visualization.py::TestPlotEdgeCases::test_single_point_result
+  C:\Projects\h2_twins\the_last\lh2sim\visualization\__init__.py:390: UserWarning: Attempting to set identical low and high xlims makes transformation singular; automatically expanding.
+    ax1.set_xlim([0, time_min[-1]])
+
+tests/unit/test_visualization.py::TestPlotEdgeCases::test_single_point_result
+  C:\Projects\h2_twins\the_last\lh2sim\visualization\__init__.py:405: UserWarning: Attempting to set identical low and high xlims makes transformation singular; automatically expanding.
+    ax2.set_xlim([0, time_min[-1]])
+
+tests/unit/test_visualization.py::TestPlotEdgeCases::test_single_point_result
+  C:\Projects\h2_twins\the_last\lh2sim\visualization\__init__.py:422: UserWarning: Attempting to set identical low and high xlims makes transformation singular; automatically expanding.
+    ax3.set_xlim([0, time_min[-1]])
+
+tests/unit/test_visualization.py::TestPlotEdgeCases::test_single_point_result
+  C:\Projects\h2_twins\the_last\lh2sim\visualization\__init__.py:432: UserWarning: Attempting to set identical low and high xlims makes transformation singular; automatically expanding.
+    ax4.set_xlim([0, time_min[-1]])
+
+tests/unit/test_visualization.py::TestPlotEdgeCases::test_single_point_result
+  C:\Projects\h2_twins\the_last\lh2sim\visualization\__init__.py:442: UserWarning: Attempting to set identical low and high xlims makes transformation singular; automatically expanding.
+    ax5.set_xlim([0, time_min[-1]])
+
+tests/unit/test_visualization.py::TestPlotEdgeCases::test_single_point_result
+  C:\Projects\h2_twins\the_last\lh2sim\visualization\__init__.py:453: UserWarning: Attempting to set identical low and high xlims makes transformation singular; automatically expanding.
+    ax6.set_xlim([0, time_min[-1]])
+
+tests/unit/test_visualization.py::TestPlotEdgeCases::test_single_point_result
+  C:\Projects\h2_twins\the_last\lh2sim\visualization\__init__.py:464: UserWarning: Attempting to set identical low and high xlims makes transformation singular; automatically expanding.
+    ax7.set_xlim([0, time_min[-1]])
+
+tests/unit/test_visualization.py::TestPlotEdgeCases::test_single_point_result
+  C:\Projects\h2_twins\the_last\lh2sim\visualization\__init__.py:474: UserWarning: Attempting to set identical low and high xlims makes transformation singular; automatically expanding.
+    ax8.set_xlim([0, time_min[-1]])
+
+tests/unit/test_visualization.py::TestPlotEdgeCases::test_single_point_result
+  C:\Projects\h2_twins\the_last\lh2sim\visualization\__init__.py:485: UserWarning: Attempting to set identical low and high xlims makes transformation singular; automatically expanding.
+    ax9.set_xlim([0, time_min[-1]])
+
+
+
+    warnings from run full simulation
+
+    C:\Projects\h2_twins\the_last\venv\Lib\site-packages\scipy\integrate\_ivp\common.py:357: RuntimeWarning: overflow encountered in multiply
+  h_new = (y[ind] + new_factor * y_scale[ind]) - y[ind]
+C:\Projects\h2_twins\the_last\venv\Lib\site-packages\scipy\integrate\_ivp\common.py:326: RuntimeWarning: overflow encountered in multiply
+  h = (y + factor * y_scale) - y
+C:\Projects\h2_twins\the_last\venv\Lib\site-packages\scipy\integrate\_ivp\common.py:356: RuntimeWarning: overflow encountered in multiply
+  new_factor = NUM_JAC_FACTOR_INCREASE * factor[ind]
+C:\Projects\h2_twins\the_last\venv\Lib\site-packages\scipy\integrate\_ivp\common.py:378: RuntimeWarning: overflow encountered in multiply
+  factor[max_diff < NUM_JAC_DIFF_SMALL * scale] *= NUM_JAC_FACTOR_INCREASE
+
+  Press Enter to continue with pump-driven example...
+
+======================================================================
+ PUMP-DRIVEN TRANSFER SIMULATION
+======================================================================
+
+Scenario: Pump-Driven Transfer
+  - Controlled mass flow via pump
+  - No vaporizer needed
+  - Different control strategy
+
+Initial Conditions:
+  Supply Tank:
+    - Liquid mass: 1148.6 kg
+    - Temperature: 21.0 K
+  End Tank:
+    - Liquid mass: 127.6 kg
+    - Height: 5.7 m
+  Transfer Mode: Pump-driven
+
+
+Error during simulation: 'TransferParameters' object has no attribute 'pump_flow_fast'    
+Traceback (most recent call last):
+  File "C:\Projects\h2_twins\the_last\examples\complete_simulation.py", line 235, in main 
+    result2, config2 = run_pump_driven_example()
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Projects\h2_twins\the_last\examples\complete_simulation.py", line 180, in run_pump_driven_example
+    print(f"    - Fast fill rate: {config.transfer.pump_flow_fast*60:.1f} kg/min")        
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'TransferParameters' object has no attribute 'pump_flow_fast'
