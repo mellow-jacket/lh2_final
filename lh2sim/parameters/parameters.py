@@ -103,6 +103,12 @@ class PhysicsParameters:
         gamma_vapor: Ratio of specific heats for vapor [-]
         mu_vapor: Vapor dynamic viscosity [Pa·s]
         kappa_vapor: Vapor thermal conductivity [W/m/K]
+        g: Gravitational acceleration [m/s²]
+        lambda_: Exponent for surface temperature correlation [-]
+        n_liquid_nodes: Number of liquid boundary layer nodes (for multi-node energy balance)
+        n_vapor_nodes: Number of vapor boundary layer nodes (for multi-node energy balance)
+        tmin_liquid: Minimum time scale for liquid boundary layer [s]
+        tmin_vapor: Minimum time scale for vapor boundary layer [s]
     """
 
     # Critical properties
@@ -122,6 +128,16 @@ class PhysicsParameters:
     mu_vapor: float = 0.98e-6  # Pa·s
     kappa_vapor: float = 0.0166  # W/m/K
 
+    # Other physics constants
+    g: float = 9.81  # m/s²
+    lambda_: float = 1.5  # Exponent for surface temperature correlation (Ts = Tc * (P/Pc)^(1/lambda))
+
+    # Multi-node energy balance parameters
+    n_liquid_nodes: int = 3  # Number of liquid boundary layer nodes (start with 3 for speed)
+    n_vapor_nodes: int = 3  # Number of vapor boundary layer nodes (start with 3 for speed)
+    tmin_liquid: float = 10.0  # s, minimum time scale for liquid boundary layer
+    tmin_vapor: float = 10.0  # s, minimum time scale for vapor boundary layer
+
     @property
     def c_p_vapor(self) -> float:
         """Vapor specific heat at constant pressure [J/kg/K]."""
@@ -135,6 +151,10 @@ class PhysicsParameters:
             raise ValueError("Critical pressure must be positive")
         if self.gamma_vapor <= 1:
             raise ValueError("Gamma must be > 1 for ideal gas")
+        if self.n_liquid_nodes < 1:
+            raise ValueError("Number of liquid nodes must be at least 1")
+        if self.n_vapor_nodes < 1:
+            raise ValueError("Number of vapor nodes must be at least 1")
 
 
 @dataclass
@@ -149,11 +169,14 @@ class TransferParameters:
         pipe_diameter: Transfer line diameter [m]
         pipe_roughness: Pipe wall roughness [m]
         vaporizer_area: Vaporizer valve effective area [m²] (for pressure-driven)
+        vaporizer_coefficient: Vaporizer flow coefficient [m²·√(Pa·kg/m³)]
+        vaporizer_time_constant: Time constant for vaporizer boil-off [s]
         pump_flow_rate: Pump volumetric flow rate [m³/s] (for pump-driven, base rate)
         pump_flow_slow: Pump mass flow rate for slow fill [kg/s] (for pump-driven)
         pump_flow_fast: Pump mass flow rate for fast fill [kg/s] (for pump-driven)
         pump_flow_topping: Pump mass flow rate for topping [kg/s] (for pump-driven)
         pump_efficiency: Pump efficiency [-] (for pump-driven)
+        transfer_time_constant: Time constant for transfer flow lag [s]
 
         # Control thresholds
         slow_fill_threshold: Height threshold for slow fill [m]
@@ -175,6 +198,9 @@ class TransferParameters:
 
     # Mode-specific parameters
     vaporizer_area: float = 0.0  # m² (only for pressure-driven)
+    vaporizer_coefficient: float = 1.0  # Flow coefficient for vaporizer
+    vaporizer_time_constant: float = 10.0  # s, time constant for vaporizer boil-off
+    transfer_time_constant: float = 1.0  # s, time constant for transfer flow lag
     pump_flow_rate: float = 0.0  # m³/s (only for pump-driven, base rate)
     pump_flow_slow: float = 0.0  # kg/s (pump-driven slow fill rate)
     pump_flow_fast: float = 0.0  # kg/s (pump-driven fast fill rate)
