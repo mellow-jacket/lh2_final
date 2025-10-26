@@ -13,16 +13,31 @@ from . import properties
 from . import geometry
 from . import flow
 from . import control
-from . import simulation
-from . import parameters
-from . import visualization
+# Optional submodules: import lazily/guarded so package import doesn't fail
+_optional = []
+
+try:
+    from . import simulation
+    _optional.append("simulation")
+except Exception:
+    # simulation is optional or still under development; don't fail import
+    simulation = None
+
+try:
+    from . import parameters
+    _optional.append("parameters")
+except Exception:
+    parameters = None
+
+try:
+    from . import visualization
+    _optional.append("visualization")
+except Exception:
+    visualization = None
 
 __all__ = [
     "properties",
     "geometry",
     "flow",
     "control",
-    "simulation",
-    "parameters",
-    "visualization",
-]
+] + _optional
