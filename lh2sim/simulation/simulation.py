@@ -14,8 +14,8 @@ This is a simplified initial implementation focusing on mass balance.
 Energy balance and detailed heat transfer will be added in future iterations.
 """
 
-from dataclasses import dataclass, field
-from typing import Optional, Tuple, Callable
+from dataclasses import dataclass
+from typing import Optional
 import numpy as np
 from scipy.integrate import solve_ivp
 
@@ -23,7 +23,7 @@ from lh2sim.parameters import ScenarioConfig
 from lh2sim.properties import FluidProperties
 from lh2sim.geometry import cyl_v_to_h, cylinder_cross_section_area
 from lh2sim.flow import gas_flow
-from lh2sim.control import PressureDrivenControl, PumpDrivenControl, ControlOutputs
+from lh2sim.control import PressureDrivenControl, PumpDrivenControl
 
 
 @dataclass
@@ -329,10 +329,8 @@ class Simulator:
         V_L_receiver = state.m_L_receiver / self.config.physics.rho_liquid if state.m_L_receiver > 0 else 0
         V_v_receiver = V_receiver - V_L_receiver
 
-        if state.m_L_receiver > 1e-6:
-            T_L_receiver = state.U_L_receiver / (state.m_L_receiver * self.config.physics.c_liquid)
-        else:
-            T_L_receiver = self.config.receiver_tank.initial_liquid_temp
+        # Note: T_L_receiver would be computed here but is not currently needed
+        # If needed in future: T_L_receiver = U_L_receiver / (m_L_receiver * c_liquid)
 
         if state.m_v_receiver > 1e-6:
             T_v_receiver = state.U_v_receiver / (state.m_v_receiver * self.config.physics.c_v_vapor)
@@ -564,6 +562,149 @@ class Simulator:
                     for v in V_L_ET
                 ]
             )
+
+    def _create_event_functions(self):
+        """
+        Create event functions for solve_ivp.
+
+        Event functions detect key simulation events like:
+        - Tank reaching maximum fill level
+        - Pressure exceeding limits
+        - Transfer completion
+
+        Returns:
+            List of event functions for solve_ivp
+        """
+        events = []
+
+        # Event 1: Receiver tank reaches target fill level
+        def fill_complete(t, y):
+            """Detect when receiver tank reaches target fill."""
+            state = SimulationState.from_array(y)
+            V_L_receiver = state.m_L_receiver / self.config.physics.rho_liquid
+            fill_fraction = V_L_receiver / self.config.receiver_tank.volume
+
+            # Target fill level (e.g., 90%)
+            target_fill = 0.90
+            return target_fill - fill_fraction
+
+        fill_complete.terminal = True  # Stop integration when triggered
+        fill_complete.direction = -1  # Trigger when crossing from positive to negative
+        events.append(fill_complete)
+
+        # Event 2: Supply tank nearly empty
+        def supply_empty(t, y):
+            """Detect when supply tank is nearly empty."""
+            state = SimulationState.from_array(y)
+            V_L_supply = state.m_L_supply / self.config.physics.rho_liquid
+            fill_fraction = V_L_supply / self.config.supply_tank.volume
+
+            # Trigger when less than 1% liquid remains
+            min_fill = 0.01
+            return fill_fraction - min_fill
+
+        supply_empty.terminal = True
+        supply_empty.direction = -1
+        events.append(supply_empty)
+
+        # Event 3: Receiver tank pressure exceeds max working pressure
+        def pressure_high(t, y):
+            """Detect when receiver pressure exceeds limit."""
+            state = SimulationState.from_array(y)
+            V_receiver = self.config.receiver_tank.volume
+            V_L_receiver = state.m_L_receiver / self.config.physics.rho_liquid
+            V_v_receiver = V_receiver - V_L_receiver
+
+            if V_v_receiver > 1e-6 and state.m_v_receiver > 1e-6:
+                # Temperature from internal energy
+                T_v = state.U_v_receiver / (state.m_v_receiver * self.config.physics.c_v_vapor)
+                # Pressure from ideal gas
+                p_receiver = (
+                    state.m_v_receiver * self.config.physics.R_vapor * T_v / V_v_receiver
+                )
+            else:
+                p_receiver = self.config.receiver_tank.initial_pressure
+
+            # Allow 5% margin above MWP before terminating
+            return 1.05 * self.config.receiver_tank.max_working_pressure - p_receiver
+
+        pressure_high.terminal = False  # Don't stop, just log
+        pressure_high.direction = -1
+        events.append(pressure_high)
+
+        return events
+
+    def run_with_events(
+        self,
+        t_end: Optional[float] = None,
+        rtol: float = 1e-6,
+        atol: float = 1e-8,
+        max_step: Optional[float] = None,
+    ) -> SimulationResult:
+        """
+        Run simulation with event detection.
+
+        This method is similar to run() but includes event functions
+        to detect and handle key simulation events automatically.
+
+        Args:
+            t_end: End time [s] (if None, uses config.t_final)
+            rtol: Relative tolerance for ODE solver
+            atol: Absolute tolerance for ODE solver
+            max_step: Maximum step size [s] (None for automatic)
+
+        Returns:
+            SimulationResult with time series and final state
+        """
+        # Get initial conditions
+        state0 = self._compute_initial_state()
+        y0 = state0.to_array()
+
+        # Time span
+        if t_end is None:
+            t_end = self.config.t_final
+        t_span = (0.0, t_end)
+
+        # Create event functions
+        events = self._create_event_functions()
+
+        # Run ODE integration with events
+        kwargs = {
+            "fun": self._derivatives,
+            "t_span": t_span,
+            "y0": y0,
+            "method": "BDF",  # Good for stiff problems
+            "rtol": rtol,
+            "atol": atol,
+            "dense_output": False,
+            "events": events,  # Add event functions
+        }
+
+        # Only add max_step if it's not None
+        if max_step is not None:
+            kwargs["max_step"] = max_step
+
+        sol = solve_ivp(**kwargs)
+
+        result = SimulationResult(
+            t=sol.t,
+            states=sol.y,
+            success=sol.success,
+            message=sol.message,
+            nfev=sol.nfev,
+            njev=sol.njev if sol.njev is not None else 0,
+        )
+
+        # Check if any events were triggered
+        if hasattr(sol, "t_events") and sol.t_events:
+            event_times = [te for te in sol.t_events if len(te) > 0]
+            if event_times:
+                result.message += f" | Events triggered at: {[te[0] for te in event_times]}"
+
+        # Post-process to add derived quantities
+        self._enrich_result(result)
+
+        return result
 
 
 # Export key classes

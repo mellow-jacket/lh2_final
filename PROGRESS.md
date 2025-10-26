@@ -68,7 +68,12 @@ Converting MATLAB liquid hydrogen (LH2) transfer simulation code to Python, base
 - [x] ODE integration using scipy.integrate.solve_ivp (BDF method for stiff systems)
 - [x] Support for both pressure-driven and pump-driven modes
 - [x] Integration with control, flow, geometry, and properties modules
-- [x] Unit tests with 97% coverage (17 tests passing)
+- [x] Event detection system ✨ NEW
+  - [x] Fill completion event (90% target level)
+  - [x] Supply tank empty event (1% minimum)
+  - [x] Pressure limit monitoring
+  - [x] run_with_events() method for automatic control
+- [x] Unit tests with 95% coverage (21 tests passing) ✨ UPDATED
 - [x] Mass conservation validated
 
 #### Visualization Module (`lh2sim/visualization/`) ✨ NEW
@@ -123,11 +128,29 @@ Converting MATLAB liquid hydrogen (LH2) transfer simulation code to Python, base
 - ✅ Added temperature dynamics: Temperatures now evolve from internal energies with heat leaks
 - ✅ Verified mass conservation: Maintained to machine precision
 
+### MATLAB Parity Improvements (2025-10-26) ✨ NEW
+- ✅ Added exact polynomial coefficients from MATLAB vaporpressure.m
+  - 6th-order T_sat(rho_vapor) polynomial
+  - 3rd-order P(T) polynomial for two-phase pressure
+  - Supercritical handling with ideal gas approximation
+- ✅ Validated flow calculations match MATLAB gasFlow.m exactly
+  - Critical pressure ratio for choking
+  - Choked and non-choked formulas
+  - Flow reversal handling
+- ✅ Implemented event detection system (from DIFFERENCES.md Item #4)
+  - Fill completion detection (90% target)
+  - Supply tank empty detection
+  - Pressure limit monitoring
+  - Terminal and non-terminal events
+  - run_with_events() method for automatic control
+
 ### Current Status
 - Pressure-driven transfer: ~671 kg/hr at start
 - Pump-driven transfer: 128-511 kg/hr depending on regime
 - Temperature evolution working (20.0K → 20.37K example)
-- All 108 tests passing with 91% coverage
+- All 117 tests passing with 91% coverage
+- Vapor pressure matches MATLAB at realistic LH2 conditions
+- Event detection stops simulation at key milestones
 
 ## Remaining Work 📋
 
@@ -208,13 +231,13 @@ Converting MATLAB liquid hydrogen (LH2) transfer simulation code to Python, base
 ### Testing Status
 
 ### Unit Tests Summary
-- **Total**: 108 tests passing, 0 failed
+- **Total**: 117 tests passing, 0 failed
 - **Geometry**: 10/10 passing (87% coverage)
 - **Flow**: 17/17 passing (96% coverage)
-- **Properties**: 16/16 passing (62% coverage - limited due to CoolProp dependency)
+- **Properties**: 21/21 passing (63% coverage) ✨ UPDATED
 - **Control**: 16/16 passing (95% coverage)
 - **Parameters**: 17/17 passing (90% coverage)
-- **Simulation**: 17/17 passing (95% coverage)
+- **Simulation**: 21/21 passing (95% coverage) ✨ UPDATED
 - **Visualization**: 16/16 passing (99% coverage)
 - **Overall Coverage**: 91%
 
@@ -231,4 +254,5 @@ Converting MATLAB liquid hydrogen (LH2) transfer simulation code to Python, base
 ---
 
 Last Updated: 2025-10-26
-Version: 0.2.1
+Version: 0.3.0
+Tests: 117/117 passing
