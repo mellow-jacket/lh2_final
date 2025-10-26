@@ -355,7 +355,7 @@ print(f"Final receiver liquid mass: {final_state.m_L_receiver:.2f} kg")
    - Pressure-driven: 3600s simulation, 3763 time steps, stable
    - Pump-driven: 3600s simulation, 432 time steps, stable
    - No NaN/Inf errors, no overflow warnings
-   - All 139 tests pass with no regressions
+   - All 138 tests pass (1 skipped), no regressions
 
 ### MATLAB Parity Improvements
 1. **Vapor Pressure Polynomials** - Added exact coefficients from LLNL MATLAB vaporpressure.m

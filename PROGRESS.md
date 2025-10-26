@@ -125,7 +125,7 @@ Converting MATLAB liquid hydrogen (LH2) transfer simulation code to Python, base
 - ✅ Implemented vent flow calculations: Added vapor venting to atmosphere when pressure exceeds limits
 - ✅ Fixed mass conservation: Proper accounting of venting losses (pressure-driven: 1.51%, pump-driven: 0.00%)
 - ✅ Verified simulation stability: Both scenarios run to completion (3600s) without errors or warnings
-- ✅ All 139 tests passing with no regressions
+- ✅ All 138 tests passing (1 skipped), no regressions
 
 ### Simulation Dynamics Issues Resolved
 - ✅ Fixed AttributeError: Added missing pump flow rate parameters (`pump_flow_slow`, `pump_flow_fast`, `pump_flow_topping`)
@@ -155,7 +155,7 @@ Converting MATLAB liquid hydrogen (LH2) transfer simulation code to Python, base
 - Pressure-driven transfer: Completes 3600s simulation, 79.2% fill, 19.6 kg vented (1.51%)
 - Pump-driven transfer: Completes 3600s simulation, 20.0% fill, 0% venting, perfect conservation
 - Temperature evolution working (20.5K → 20.9K pressure-driven example)
-- All 139 tests passing with 91% coverage ✨ UPDATED ✨ UPDATED
+- All 138 tests passing (1 skipped) with 92% coverage ✨ UPDATED
 - Vapor pressure matches MATLAB at realistic LH2 conditions
 - Event detection stops simulation at key milestones
 - No overflow errors or NaN/Inf issues ✨ NEW
