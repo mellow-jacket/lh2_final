@@ -100,7 +100,7 @@ def main():
     
     # Run simulation - shorter duration for depressurization demo
     simulator = Simulator(config)
-    result = simulator.run(t_end=300, max_step=2.0)  # 5 min
+    result = simulator.run(t_end=1000, max_step=0.5)  # 5 min
     
     print(f"\nSimulation completed!")
     print(f"  Status: {result.message}")
