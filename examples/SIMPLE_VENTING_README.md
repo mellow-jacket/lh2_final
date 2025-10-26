@@ -11,7 +11,7 @@ The `simple_venting.py` script simulates a single tank at 50% fill with saturate
 - **Tank**: 10 m³ vertical cylinder
 - **Initial Fill**: 50% (as specified in the issue)
 - **Initial Conditions**: 1.3 bar, 20.3 K (saturated equilibrium)
-- **Heat Leak**: 1500 W total (liquid + vapor)
+- **Heat Leak**: 1000 W liquid + 500 W vapor = 1500 W total
 - **Vent Threshold**: Opens at 1.35 bar, closes at 1.25 bar
 - **Mode**: Pump-driven with minimal flow (avoids vaporizer dynamics)
 
