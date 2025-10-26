@@ -9,6 +9,9 @@ import numpy as np
 from lh2sim.simulation import SimulationState, SimulationResult, Simulator
 from lh2sim.parameters import create_trailer_to_dewar_scenario, create_pump_driven_scenario
 
+# Constant for state vector size (makes updates easier)
+NUM_STATE_VARIABLES = 14  # Updated from 13 to include Tw_receiver
+
 
 class TestSimulationState:
     """Test SimulationState data structure."""
@@ -57,7 +60,7 @@ class TestSimulationState:
         )
         arr = state.to_array()
         assert isinstance(arr, np.ndarray)
-        assert len(arr) == 14  # Updated to 14 state variables (added Tw_receiver)
+        assert len(arr) == NUM_STATE_VARIABLES
         assert arr[0] == 1000.0
         assert arr[7] == 5e4
         assert arr[8] == 20.0  # Ts_supply
@@ -114,7 +117,7 @@ class TestSimulationResult:
     def test_result_creation(self):
         """Test creating a simulation result."""
         t = np.linspace(0, 100, 11)
-        states = np.random.rand(14, 11)  # Updated to 14 state variables
+        states = np.random.rand(NUM_STATE_VARIABLES, 11)
         
         result = SimulationResult(
             t=t,
@@ -127,12 +130,12 @@ class TestSimulationResult:
         
         assert result.success
         assert len(result.t) == 11
-        assert result.states.shape == (14, 11)  # Updated to 14 state variables
+        assert result.states.shape == (NUM_STATE_VARIABLES, 11)
     
     def test_get_state_at_index(self):
         """Test extracting state at specific time index."""
         t = np.linspace(0, 100, 11)
-        states = np.random.rand(14, 11)  # Updated to 14 state variables
+        states = np.random.rand(NUM_STATE_VARIABLES, 11)
         
         result = SimulationResult(
             t=t,
@@ -207,7 +210,7 @@ class TestSimulator:
         dydt = sim._derivatives(0.0, y0)
         
         assert dydt.shape == y0.shape
-        assert len(dydt) == 14  # Updated to 14 state variables
+        assert len(dydt) == NUM_STATE_VARIABLES
     
     def test_derivatives_mass_conservation(self):
         """Test that mass is conserved in derivatives."""
@@ -237,7 +240,7 @@ class TestSimulator:
         
         assert result.success
         assert len(result.t) > 0
-        assert result.states.shape[0] == 14  # Updated to 14 state variables
+        assert result.states.shape[0] == NUM_STATE_VARIABLES
         assert result.t[0] == 0.0
         assert result.t[-1] <= config.t_final
     
