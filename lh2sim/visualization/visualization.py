@@ -5,10 +5,28 @@ This module provides plotting utilities for visualizing simulation results,
 including time series of pressures, temperatures, mass flows, and tank levels.
 """
 
+import warnings
 import numpy as np
 import matplotlib.pyplot as plt
 from typing import Optional, Tuple
 from ..simulation import SimulationResult
+
+
+def _safe_xlim(ax, time_min):
+    """
+    Safely set xlim without triggering warnings for single-point or zero-duration data.
+    
+    Parameters
+    ----------
+    ax : matplotlib.axes.Axes
+        The axes to set xlim on
+    time_min : np.ndarray
+        Time array in minutes
+    """
+    max_time = time_min[-1] if len(time_min) > 0 else 0
+    if max_time > 1e-6:  # Only set xlim if we have meaningful time range
+        ax.set_xlim([0, max_time])
+    # Otherwise, let matplotlib auto-scale
 
 
 def plot_tank_levels(
@@ -55,7 +73,7 @@ def plot_tank_levels(
     ax.plot(time_min, level_pct_ST, "b-", linewidth=2, label="ST level")
     ax.set_ylabel("Supply Tank Level [%]", fontsize=11)
     ax.set_xlabel("Time [min]", fontsize=11)
-    ax.set_xlim([0, time_min[-1]])
+    _safe_xlim(ax, time_min)
     ax.set_ylim([0, 100])
     ax.legend(loc="best")
     ax.grid(True, alpha=0.3)
@@ -72,7 +90,7 @@ def plot_tank_levels(
 
     ax.set_ylabel("End Tank Level [%]", fontsize=11)
     ax.set_xlabel("Time [min]", fontsize=11)
-    ax.set_xlim([0, time_min[-1]])
+    _safe_xlim(ax, time_min)
     ax.set_ylim([0, 100])
     ax.legend(loc="best", fontsize=8)
     ax.grid(True, alpha=0.3)
@@ -91,13 +109,17 @@ def plot_tank_levels(
     ax.plot(time_min, flow_rate, "g-", linewidth=2, label="Transfer flow")
     ax.set_ylabel("Transfer Flow Rate [kg/min]", fontsize=11)
     ax.set_xlabel("Time [min]", fontsize=11)
-    ax.set_xlim([0, time_min[-1]])
+    _safe_xlim(ax, time_min)
     if np.max(flow_rate) > 0:
         ax.set_ylim([0, np.max(flow_rate) * 1.1])
     ax.legend(loc="best")
     ax.grid(True, alpha=0.3)
 
-    plt.tight_layout()
+    # Adjust layout to avoid suptitle overlap
+    # Suppress tight_layout warning for GridSpec layouts
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message="This figure includes Axes that are not compatible with tight_layout")
+        plt.tight_layout(rect=[0, 0, 1, 0.96])
 
     if save_path:
         plt.savefig(save_path, dpi=300, bbox_inches="tight")
@@ -153,7 +175,7 @@ def plot_pressures(
     ax.set_xlabel("Time [min]", fontsize=11)
     ax.set_ylabel("Pressure [bar]", fontsize=11)
     ax.set_title("Tank Pressures", fontsize=14, fontweight="bold")
-    ax.set_xlim([0, time_min[-1]])
+    _safe_xlim(ax, time_min)
     ax.legend(loc="best")
     ax.grid(True, alpha=0.3)
 
@@ -196,7 +218,7 @@ def plot_temperatures(
 
     ax1.set_ylabel("Supply Tank Temperature [K]", fontsize=11)
     ax1.set_xlabel("Time [min]", fontsize=11)
-    ax1.set_xlim([0, time_min[-1]])
+    _safe_xlim(ax1, time_min)
     ax1.legend(loc="best")
     ax1.grid(True, alpha=0.3)
 
@@ -206,7 +228,7 @@ def plot_temperatures(
 
     ax2.set_ylabel("End Tank Temperature [K]", fontsize=11)
     ax2.set_xlabel("Time [min]", fontsize=11)
-    ax2.set_xlim([0, time_min[-1]])
+    _safe_xlim(ax2, time_min)
     ax2.legend(loc="best")
     ax2.grid(True, alpha=0.3)
 
@@ -248,7 +270,7 @@ def plot_masses(
     ax.plot(time_min, result.m_L_ST, "b-", linewidth=2)
     ax.set_ylabel("ST Liquid Mass [kg]", fontsize=11)
     ax.set_xlabel("Time [min]", fontsize=11)
-    ax.set_xlim([0, time_min[-1]])
+    _safe_xlim(ax, time_min)
     ax.grid(True, alpha=0.3)
 
     # End Tank liquid mass
@@ -256,7 +278,7 @@ def plot_masses(
     ax.plot(time_min, result.m_L_ET, "r-", linewidth=2)
     ax.set_ylabel("ET Liquid Mass [kg]", fontsize=11)
     ax.set_xlabel("Time [min]", fontsize=11)
-    ax.set_xlim([0, time_min[-1]])
+    _safe_xlim(ax, time_min)
     ax.grid(True, alpha=0.3)
 
     # Supply Tank vapor mass
@@ -264,7 +286,7 @@ def plot_masses(
     ax.plot(time_min, result.m_v_ST, "b--", linewidth=2)
     ax.set_ylabel("ST Vapor Mass [kg]", fontsize=11)
     ax.set_xlabel("Time [min]", fontsize=11)
-    ax.set_xlim([0, time_min[-1]])
+    _safe_xlim(ax, time_min)
     ax.grid(True, alpha=0.3)
 
     # End Tank vapor mass
@@ -272,7 +294,7 @@ def plot_masses(
     ax.plot(time_min, result.m_v_ET, "r--", linewidth=2)
     ax.set_ylabel("ET Vapor Mass [kg]", fontsize=11)
     ax.set_xlabel("Time [min]", fontsize=11)
-    ax.set_xlim([0, time_min[-1]])
+    _safe_xlim(ax, time_min)
     ax.grid(True, alpha=0.3)
 
     plt.tight_layout()
@@ -314,7 +336,7 @@ def plot_densities(
 
     ax1.set_ylabel("Vapor Density [kg/m³]", fontsize=11)
     ax1.set_xlabel("Time [min]", fontsize=11)
-    ax1.set_xlim([0, time_min[-1]])
+    _safe_xlim(ax1, time_min)
     ax1.legend(loc="best")
     ax1.grid(True, alpha=0.3)
 
@@ -324,7 +346,7 @@ def plot_densities(
 
     ax2.set_ylabel("Liquid Density [kg/m³]", fontsize=11)
     ax2.set_xlabel("Time [min]", fontsize=11)
-    ax2.set_xlim([0, time_min[-1]])
+    _safe_xlim(ax2, time_min)
     ax2.legend(loc="best")
     ax2.grid(True, alpha=0.3)
 
@@ -379,7 +401,7 @@ def plot_summary_dashboard(
     ax1.axhline(y=90, color="purple", linestyle="--", linewidth=0.8, alpha=0.7)
     ax1.set_ylabel("ET Level [%]", fontsize=10)
     ax1.set_xlabel("Time [min]", fontsize=10)
-    ax1.set_xlim([0, time_min[-1]])
+    _safe_xlim(ax1, time_min)
     ax1.set_ylim([0, 100])
     ax1.grid(True, alpha=0.3)
     ax1.set_title("End Tank Level", fontsize=11)
@@ -393,7 +415,7 @@ def plot_summary_dashboard(
             ax2.axhline(y=pressure_limits["p_ET_high"] / 1e5, color="red", linestyle="--", linewidth=0.8, alpha=0.7)
     ax2.set_ylabel("Pressure [bar]", fontsize=10)
     ax2.set_xlabel("Time [min]", fontsize=10)
-    ax2.set_xlim([0, time_min[-1]])
+    _safe_xlim(ax2, time_min)
     ax2.legend(loc="best", fontsize=8)
     ax2.grid(True, alpha=0.3)
     ax2.set_title("Tank Pressures", fontsize=11)
@@ -410,7 +432,7 @@ def plot_summary_dashboard(
     ax3.plot(time_min, flow_rate, "g-", linewidth=2)
     ax3.set_ylabel("Flow [kg/min]", fontsize=10)
     ax3.set_xlabel("Time [min]", fontsize=10)
-    ax3.set_xlim([0, time_min[-1]])
+    _safe_xlim(ax3, time_min)
     ax3.grid(True, alpha=0.3)
     ax3.set_title("Transfer Flow Rate", fontsize=11)
 
@@ -420,7 +442,7 @@ def plot_summary_dashboard(
     ax4.plot(time_min, result.T_v_ST, "b--", linewidth=2, label="Vapor")
     ax4.set_ylabel("Temperature [K]", fontsize=10)
     ax4.set_xlabel("Time [min]", fontsize=10)
-    ax4.set_xlim([0, time_min[-1]])
+    _safe_xlim(ax4, time_min)
     ax4.legend(loc="best", fontsize=8)
     ax4.grid(True, alpha=0.3)
     ax4.set_title("Supply Tank Temperatures", fontsize=11)
@@ -430,7 +452,7 @@ def plot_summary_dashboard(
     ax5.plot(time_min, result.T_v_ET, "r--", linewidth=2, label="Vapor")
     ax5.set_ylabel("Temperature [K]", fontsize=10)
     ax5.set_xlabel("Time [min]", fontsize=10)
-    ax5.set_xlim([0, time_min[-1]])
+    _safe_xlim(ax5, time_min)
     ax5.legend(loc="best", fontsize=8)
     ax5.grid(True, alpha=0.3)
     ax5.set_title("End Tank Temperatures", fontsize=11)
@@ -441,7 +463,7 @@ def plot_summary_dashboard(
     ax6.plot(time_min, result.rho_v_ET, "r-", linewidth=1.5, label="ET vapor")
     ax6.set_ylabel("Vapor Density [kg/m³]", fontsize=10)
     ax6.set_xlabel("Time [min]", fontsize=10)
-    ax6.set_xlim([0, time_min[-1]])
+    _safe_xlim(ax6, time_min)
     ax6.legend(loc="best", fontsize=8)
     ax6.grid(True, alpha=0.3)
     ax6.set_title("Vapor Densities", fontsize=11)
@@ -452,7 +474,7 @@ def plot_summary_dashboard(
     ax7.plot(time_min, result.m_v_ST, "b--", linewidth=2, label="Vapor")
     ax7.set_ylabel("Mass [kg]", fontsize=10)
     ax7.set_xlabel("Time [min]", fontsize=10)
-    ax7.set_xlim([0, time_min[-1]])
+    _safe_xlim(ax7, time_min)
     ax7.legend(loc="best", fontsize=8)
     ax7.grid(True, alpha=0.3)
     ax7.set_title("Supply Tank Masses", fontsize=11)
@@ -462,7 +484,7 @@ def plot_summary_dashboard(
     ax8.plot(time_min, result.m_v_ET, "r--", linewidth=2, label="Vapor")
     ax8.set_ylabel("Mass [kg]", fontsize=10)
     ax8.set_xlabel("Time [min]", fontsize=10)
-    ax8.set_xlim([0, time_min[-1]])
+    _safe_xlim(ax8, time_min)
     ax8.legend(loc="best", fontsize=8)
     ax8.grid(True, alpha=0.3)
     ax8.set_title("End Tank Masses", fontsize=11)
@@ -473,7 +495,7 @@ def plot_summary_dashboard(
     ax9.plot(time_min, total_mass, "k-", linewidth=2)
     ax9.set_ylabel("Total Mass [kg]", fontsize=10)
     ax9.set_xlabel("Time [min]", fontsize=10)
-    ax9.set_xlim([0, time_min[-1]])
+    _safe_xlim(ax9, time_min)
     ax9.grid(True, alpha=0.3)
     ax9.set_title("Total System Mass", fontsize=11)
 
