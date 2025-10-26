@@ -28,6 +28,10 @@ dev = [
     "mypy>=0.950",
 ]
 
+[tool.setuptools.packages.find]
+include = ["lh2sim*"]
+exclude = ["matlab_codebases*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
