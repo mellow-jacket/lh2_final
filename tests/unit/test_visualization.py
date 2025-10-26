@@ -14,7 +14,8 @@ from lh2sim.visualization import (
     plot_temperatures,
     plot_masses,
     plot_densities,
-    plot_summary_dashboard
+    plot_summary_dashboard,
+    plot_single_tank_venting,
 )
 
 
@@ -45,6 +46,11 @@ def simple_result():
     result.rho_L_ET = np.linspace(70.0, 68.0, n_points)
     result.rho_v_ST = np.linspace(1.2, 1.1, n_points)
     result.rho_v_ET = np.linspace(1.0, 1.5, n_points)
+    result.h_L_ST = np.linspace(1.5, 1.2, n_points)  # Add ST height
+    result.U_L_ST = np.linspace(1e6, 0.9e6, n_points)  # Add internal energies
+    result.U_v_ST = np.linspace(5e4, 4.5e4, n_points)
+    result.U_L_ET = np.linspace(1e5, 2e5, n_points)
+    result.U_v_ET = np.linspace(5e3, 1.5e4, n_points)
     
     return result
 
@@ -263,3 +269,61 @@ class TestPlotEdgeCases:
         
         fig3 = plot_summary_dashboard(result, tank_heights)
         plt.close(fig3)
+
+
+class TestSingleTankVenting:
+    """Test single-tank venting visualization function."""
+    
+    def test_plot_single_tank_venting(self, simple_result):
+        """Test that plot_single_tank_venting creates a figure."""
+        tank_height = 3.0
+        pressure_limit = 1.35e5
+        
+        fig = plot_single_tank_venting(simple_result, tank_height, pressure_limit)
+        assert fig is not None
+        
+        # Should have created a figure with multiple subplots
+        assert len(fig.get_axes()) == 9  # 9-panel dashboard
+        
+        plt.close(fig)
+    
+    def test_plot_single_tank_venting_with_save(self, simple_result, tmp_path):
+        """Test saving single-tank venting plot."""
+        tank_height = 3.0
+        pressure_limit = 1.35e5
+        save_path = str(tmp_path / "test_venting.png")
+        
+        fig = plot_single_tank_venting(simple_result, tank_height, pressure_limit, save_path=save_path)
+        assert fig is not None
+        
+        # Check that file was created
+        import os
+        assert os.path.exists(save_path)
+        
+        plt.close(fig)
+    
+    def test_plot_single_tank_venting_handles_single_point(self):
+        """Test that single-tank venting plot handles single time point."""
+        # Create minimal mock result with single point
+        class MockResult:
+            pass
+        
+        result = MockResult()
+        result.time = np.array([0.0])
+        result.h_L_ST = np.array([1.5])
+        result.m_L_ST = np.array([300.0])
+        result.m_v_ST = np.array([10.0])
+        result.p_v_ST = np.array([1.3e5])
+        result.T_L_ST = np.array([20.0])
+        result.T_v_ST = np.array([20.5])
+        result.rho_L_ST = np.array([70.0])
+        result.rho_v_ST = np.array([1.2])
+        result.U_L_ST = np.array([1e6])
+        result.U_v_ST = np.array([5e4])
+        
+        tank_height = 3.0
+        pressure_limit = 1.35e5
+        
+        # Should not raise errors
+        fig = plot_single_tank_venting(result, tank_height, pressure_limit)
+        plt.close(fig)
