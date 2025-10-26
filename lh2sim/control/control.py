@@ -244,12 +244,14 @@ class PumpDrivenControl:
 
         # Internal state
         self.ET_vent_state = 0
+        self.ST_vent_state = 0
 
     def compute_control(
         self,
         h_L2: float,
         p_ET: float,
         ET_fill_complete: bool = False,
+        p_ST: float = None,  # Optional for ST vent control
     ) -> ControlOutputs:
         """
         Compute control outputs for pump-driven mode.
@@ -262,6 +264,8 @@ class PumpDrivenControl:
             End tank pressure [Pa]
         ET_fill_complete : bool
             Flag indicating end tank is full
+        p_ST : float, optional
+            Supply tank pressure [Pa] (for ST vent control if enabled)
 
         Returns
         -------
@@ -285,8 +289,12 @@ class PumpDrivenControl:
         # No vaporizer in pump mode
         lambda_V = 0.0
 
-        # No ST vent in pump mode
-        ST_vent_state = 0
+        # ST vent control (if p_ST provided and thresholds set)
+        if p_ST is not None and "p_ST_vent_open" in P and "p_ST_vent_close" in P:
+            ST_vent_state = self._get_ST_vent_state(p_ST)
+        else:
+            # Default: no ST vent in pump mode
+            ST_vent_state = 0
 
         # ET vent control
         if ET_fill_complete:
@@ -295,6 +303,7 @@ class PumpDrivenControl:
             ET_vent_state = self._get_ET_vent_state(p_ET)
 
         self.ET_vent_state = ET_vent_state
+        self.ST_vent_state = ST_vent_state
 
         return ControlOutputs(
             lambda_E=lambda_E,
@@ -302,6 +311,32 @@ class PumpDrivenControl:
             ST_vent_state=ST_vent_state,
             ET_vent_state=ET_vent_state,
         )
+    
+    def _get_ST_vent_state(self, p_ST: float) -> int:
+        """
+        Determine supply tank vent state with hysteresis (for single-tank scenarios).
+        
+        Parameters
+        ----------
+        p_ST : float
+            Supply tank pressure [Pa]
+            
+        Returns
+        -------
+        state : int
+            Vent state (0=closed, 1=open)
+        """
+        P = self.params
+        
+        if p_ST > P["p_ST_vent_open"]:
+            # Pressure above open threshold - open vent
+            return 1
+        elif p_ST < P["p_ST_vent_close"]:
+            # Pressure below close threshold - close vent
+            return 0
+        else:
+            # Within hysteresis band - maintain current state
+            return self.ST_vent_state
 
     def _get_ET_vent_state(self, p_ET: float) -> int:
         """Determine end tank vent state with hysteresis."""
