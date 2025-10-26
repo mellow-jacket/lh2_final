@@ -1,0 +1,72 @@
+
+
+-====================================================================-
+|          LH2 TRANSFER SIMULATION - COMPLETE EXAMPLE               |
+-====================================================================-
+
+======================================================================
+ PRESSURE-DRIVEN TRANSFER SIMULATION
+======================================================================
+
+Scenario: Trailer to Dewar Transfer (Pressure-Driven)
+  - 17,000 gallon horizontal trailer (supply)
+  - 3,300 gallon vertical dewar (receiver)
+  - Vaporizer provides driving pressure
+  - Automatic vent control
+
+Initial Conditions:
+  Supply Tank:
+    - Liquid mass: 1148.6 kg
+    - Initial fill: 90.0%
+    - Temperature: 21.0 K
+    - Pressure: 1.50 bar
+  End Tank:
+    - Liquid mass: 127.6 kg
+    - Height: 5.7 m
+    - Initial fill: 10.0%
+
+Running simulation...
+
+
+Error during simulation: array must not contain infs or NaNs
+
+(venv) C:\Projects\h2_twins\the_last>python examples\complete_simulation.py > output.txt
+C:\Projects\h2_twins\the_last\lh2sim\simulation\simulation.py:399: RuntimeWarning: overflow encountered in scalar multiply
+  T_v_receiver = state.U_v_receiver / (state.m_v_receiver * self.config.physics.c_v_vapor)
+C:\Projects\h2_twins\the_last\lh2sim\simulation\simulation.py:404: RuntimeWarning: overflow encountered in scalar multiply
+  p_receiver = state.m_v_receiver * self.config.physics.R_vapor * T_v_receiver / V_v_receiver
+C:\Projects\h2_twins\the_last\lh2sim\simulation\simulation.py:404: RuntimeWarning: invalid value encountered in scalar multiply
+  p_receiver = state.m_v_receiver * self.config.physics.R_vapor * T_v_receiver / V_v_receiver
+Traceback (most recent call last):
+  File "C:\Projects\h2_twins\the_last\examples\complete_simulation.py", line 230, in main 
+    result1, config1 = run_pressure_driven_example()
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Projects\h2_twins\the_last\examples\complete_simulation.py", line 119, in run_pressure_driven_example
+    result = simulator.run(t_end=3600, max_step=10.0)  # 1 hour max, 10s max step
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Projects\h2_twins\the_last\lh2sim\simulation\simulation.py", line 632, in run  
+    sol = solve_ivp(**kwargs)
+          ^^^^^^^^^^^^^^^^^^^
+  File "C:\Projects\h2_twins\the_last\venv\Lib\site-packages\scipy\integrate\_ivp\ivp.py", line 655, in solve_ivp
+    message = solver.step()
+              ^^^^^^^^^^^^^
+  File "C:\Projects\h2_twins\the_last\venv\Lib\site-packages\scipy\integrate\_ivp\base.py", line 197, in step
+    success, message = self._step_impl()
+                       ^^^^^^^^^^^^^^^^^
+  File "C:\Projects\h2_twins\the_last\venv\Lib\site-packages\scipy\integrate\_ivp\bdf.py", line 363, in _step_impl
+    LU = self.lu(self.I - c * J)
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Projects\h2_twins\the_last\venv\Lib\site-packages\scipy\integrate\_ivp\bdf.py", line 232, in lu
+    return lu_factor(A, overwrite_a=True)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Projects\h2_twins\the_last\venv\Lib\site-packages\scipy\_lib\_util.py", line 1233, in wrapper
+    return f(*arrays, *other_args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Projects\h2_twins\the_last\venv\Lib\site-packages\scipy\linalg\_decomp_lu.py", line 109, in lu_factor
+    a1 = asarray_chkfinite(a)
+         ^^^^^^^^^^^^^^^^^^^^
+  File "C:\Projects\h2_twins\the_last\venv\Lib\site-packages\numpy\lib\_function_base_impl.py", line 665, in asarray_chkfinite
+    raise ValueError(
+ValueError: array must not contain infs or NaNs
+
+(venv) C:\Projects\h2_twins\the_last>
