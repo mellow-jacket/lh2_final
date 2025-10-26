@@ -177,8 +177,9 @@ def run_pump_driven_example():
     print(f"    - Liquid mass: {m_L_init_ET:.1f} kg")
     print(f"    - Height: {config.receiver_tank.length_or_height:.1f} m")
     print(f"  Transfer Mode: Pump-driven")
-    print(f"    - Fast fill rate: {config.transfer.pump_flow_fast*60:.1f} kg/min")
-    print(f"    - Topping rate: {config.transfer.pump_flow_topping*60:.1f} kg/min")
+    print(f"    - Slow fill rate: {config.transfer.pump_flow_slow*3600:.1f} kg/hr")
+    print(f"    - Fast fill rate: {config.transfer.pump_flow_fast*3600:.1f} kg/hr")
+    print(f"    - Topping rate: {config.transfer.pump_flow_topping*3600:.1f} kg/hr")
     
     # Run simulation
     print("\nRunning simulation...")
