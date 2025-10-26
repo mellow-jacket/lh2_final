@@ -447,9 +447,9 @@ def create_single_tank_venting_scenario() -> ScenarioConfig:
         initial_vapor_temp=29.5,  # K (saturated equilibrium)
         initial_fill_fraction=0.5,  # 50% full as specified
         max_working_pressure=15.0 * bar_to_pa,  # Safety limit
-        vent_area=0.002,  # m² (moderate vent size for good regulation)
-        heat_leak_liquid=0.0,  # W (no heat input for this demo)
-        heat_leak_vapor=0.0,  # W
+        vent_area=0.0005,  # m² (smaller vent for slower, more stable dynamics)
+        heat_leak_liquid=500.0,  # W (moderate heat input to drive venting)
+        heat_leak_vapor=250.0,  # W
     )
     
     # Dummy receiver tank (not used, but required by ScenarioConfig structure)
@@ -473,23 +473,19 @@ def create_single_tank_venting_scenario() -> ScenarioConfig:
     # Physics parameters (default para-hydrogen)
     physics = PhysicsParameters()
     
-    # Transfer parameters - use pump mode to disable vaporizer
+    # Transfer parameters - use pressure-driven mode for natural venting behavior
     # The heat leak will drive pressure rise, and vent will regulate
-    rho_liquid = physics.rho_liquid
     transfer = TransferParameters(
-        mode="pump_driven",  # No vaporizer - use heat leak instead
+        mode="pressure_driven",  # Pressure-driven mode with no vaporizer flow
         transfer_valve_area=1e-10,  # Essentially closed (no transfer)
-        pump_flow_rate=1e-10,  # Minimal (no actual pumping)
-        pump_flow_slow=rho_liquid * 1e-10,
-        pump_flow_fast=rho_liquid * 1e-10,
-        pump_flow_topping=rho_liquid * 1e-10,
+        vaporizer_area=1e-10,  # Essentially closed (no vaporizer flow)
         pipe_length=1.0,
         pipe_diameter=0.01,
-        # Set vent thresholds for 10 bar setpoint
-        ST_vent_open_threshold=10.0 * bar_to_pa,  # Open at 10 bar
-        ST_vent_close_threshold=9.9 * bar_to_pa,  # Close at 9.9 bar
-        # Dummy tank thresholds (very high - won't vent)
-        ET_vent_open_threshold=20.0 * bar_to_pa,
+        # Vent control thresholds - not used directly in pressure-driven mode
+        # (pressure-driven control uses fill-regime based ST vent logic)
+        ST_vent_open_threshold=10.0 * bar_to_pa,  # Open at 10 bar (for reference)
+        ST_vent_close_threshold=9.9 * bar_to_pa,  # Close at 9.9 bar (for reference)
+        ET_vent_open_threshold=20.0 * bar_to_pa,  # Very high - won't vent
         ET_vent_close_threshold=19.0 * bar_to_pa,
     )
     

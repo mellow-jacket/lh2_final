@@ -222,15 +222,36 @@ class Simulator:
         # Initialize controller based on transfer mode
         if config.transfer.mode == "pressure_driven":
             # Create parameter dict for PressureDrivenControl
-            control_params = {
-                "H": config.receiver_tank.length_or_height,
-                "p_ST_slow": config.supply_tank.max_working_pressure * 0.5,
-                "p_ST_fast": config.supply_tank.max_working_pressure * 0.7,
-                "p_ST_final": config.supply_tank.max_working_pressure * 0.9,
-                "p_ET_low": config.receiver_tank.max_working_pressure * 0.9,
-                "p_ET_high": config.receiver_tank.max_working_pressure * 1.05,
-                "p_ET_final": config.receiver_tank.max_working_pressure * 1.0,
-            }
+            # Use explicit ST vent thresholds if provided, otherwise use fractions of max pressure
+            if hasattr(config.transfer, 'ST_vent_open_threshold') and config.transfer.ST_vent_open_threshold > 0:
+                # Use explicit thresholds for single-tank venting scenarios
+                # Set all regime thresholds to the same value for consistent venting
+                p_ST_threshold = config.transfer.ST_vent_open_threshold
+                control_params = {
+                    "H": config.receiver_tank.length_or_height,
+                    "p_ST_slow": p_ST_threshold,
+                    "p_ST_fast": p_ST_threshold,
+                    "p_ST_final": p_ST_threshold,
+                    "p_ET_low": config.receiver_tank.max_working_pressure * 0.9,
+                    "p_ET_high": config.receiver_tank.max_working_pressure * 1.05,
+                    "p_ET_final": config.receiver_tank.max_working_pressure * 1.0,
+                    # Add explicit thresholds for precise control
+                    "p_ST_vent_open": config.transfer.ST_vent_open_threshold,
+                    "p_ST_vent_close": config.transfer.ST_vent_close_threshold,
+                }
+            else:
+                # Use fraction of max pressure for normal two-tank transfer
+                p_ST_threshold = config.supply_tank.max_working_pressure * 0.7
+                control_params = {
+                    "H": config.receiver_tank.length_or_height,
+                    "p_ST_slow": config.supply_tank.max_working_pressure * 0.5,
+                    "p_ST_fast": config.supply_tank.max_working_pressure * 0.7,
+                    "p_ST_final": config.supply_tank.max_working_pressure * 0.9,
+                    "p_ET_low": config.receiver_tank.max_working_pressure * 0.9,
+                    "p_ET_high": config.receiver_tank.max_working_pressure * 1.05,
+                    "p_ET_final": config.receiver_tank.max_working_pressure * 1.0,
+                }
+            
             self.controller = PressureDrivenControl(control_params)
         else:  # pump_driven
             # Create parameter dict for PumpDrivenControl
@@ -719,6 +740,8 @@ class Simulator:
         # Specific internal energies for transfer
         u_L_transfer = self.config.physics.c_liquid * T_L_supply
         u_v_boil = self.config.physics.c_v_vapor * T_v_supply  # Vapor from vaporizer
+        u_v_supply = self.config.physics.c_v_vapor * T_v_supply  # Vapor specific internal energy for venting
+        u_v_receiver = self.config.physics.c_v_vapor * T_v_receiver  # Vapor specific internal energy for venting
         
         # Supply tank (no wall thermal mass - use simple heat leaks)
         dU_L_supply_dt = (
@@ -734,6 +757,7 @@ class Simulator:
             - J_cd_supply * qh_supply  # Evaporation uses latent heat
             + Q_dot_VS_supply  # Heat from interface
             + self.config.supply_tank.heat_leak_vapor  # External heat leak
+            - J_vent_supply * u_v_supply  # Vented vapor takes its internal energy
         )
 
         # Receiver tank (with wall heat transfer)
@@ -748,6 +772,7 @@ class Simulator:
             -J_cd_receiver * qh_receiver  # Evaporation uses latent heat
             + Q_dot_VS_receiver  # Heat from interface
             + Q_dot_WV_receiver  # Heat from wall
+            - J_vent_receiver * u_v_receiver  # Vented vapor takes its internal energy
         )
 
         # Return derivatives in same order as state vector

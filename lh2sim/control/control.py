@@ -81,6 +81,9 @@ class PressureDrivenControl:
         P = self.params
         H = P["H"]  # End tank height
 
+        # Check if explicit ST vent thresholds are provided (for single-tank venting)
+        has_explicit_ST_vent = "p_ST_vent_open" in P and "p_ST_vent_close" in P
+
         # Determine fill regime based on liquid height
         h_fraction = h_L2 / H
 
@@ -88,13 +91,19 @@ class PressureDrivenControl:
             # Slow fill regime
             lambda_E = 0.5 * (1 - float(ET_fill_complete))
             lambda_V = (1 - float(ET_fill_complete)) * self._get_vaporizer_valve_state(p_ST, P["p_ST_slow"])
-            ST_vent_state = self._get_ST_vent_state(p_ST, P["p_ST_slow"])
+            if has_explicit_ST_vent:
+                ST_vent_state = self._get_ST_vent_state_explicit(p_ST)
+            else:
+                ST_vent_state = self._get_ST_vent_state(p_ST, P["p_ST_slow"])
 
         elif h_fraction < 0.70:
             # Fast fill regime
             lambda_E = 1.0 * (1 - float(ET_fill_complete))
             lambda_V = (1 - float(ET_fill_complete)) * self._get_vaporizer_valve_state(p_ST, P["p_ST_fast"])
-            ST_vent_state = self._get_ST_vent_state(p_ST, P["p_ST_fast"])
+            if has_explicit_ST_vent:
+                ST_vent_state = self._get_ST_vent_state_explicit(p_ST)
+            else:
+                ST_vent_state = self._get_ST_vent_state(p_ST, P["p_ST_fast"])
 
         elif h_fraction < 0.85:
             # Reduced fast fill regime
@@ -103,7 +112,10 @@ class PressureDrivenControl:
             if ET_fill_complete:
                 ST_vent_state = 1 if p_ST > P["p_ST_final"] else 0
             else:
-                ST_vent_state = self._get_ST_vent_state(p_ST, P["p_ST_slow"])
+                if has_explicit_ST_vent:
+                    ST_vent_state = self._get_ST_vent_state_explicit(p_ST)
+                else:
+                    ST_vent_state = self._get_ST_vent_state(p_ST, P["p_ST_slow"])
 
         else:
             # Topping regime
@@ -151,15 +163,20 @@ class PressureDrivenControl:
         state : int
             Vent state (0=closed, 1=open)
         """
-        # Hysteresis: ±10% deadband
-        if p_ST < threshold + 0.1 * threshold:
-            # Below upper limit - turn off
-            return 0
-        elif p_ST > threshold - 0.1 * threshold:
-            # Above lower limit - turn on
+        # Hysteresis: ±10% deadband around threshold
+        # Open vent when pressure exceeds upper threshold
+        # Close vent when pressure drops below lower threshold
+        upper_threshold = threshold + 0.1 * threshold  # threshold * 1.1
+        lower_threshold = threshold - 0.1 * threshold  # threshold * 0.9
+        
+        if p_ST > upper_threshold:
+            # Pressure above upper limit - open vent
             return 1
+        elif p_ST < lower_threshold:
+            # Pressure below lower limit - close vent
+            return 0
         else:
-            # Within deadband - maintain current state
+            # Within deadband - maintain current state (hysteresis)
             return self.ST_vent_state
 
     def _get_ET_vent_state(self, p_ET: float) -> int:
@@ -187,6 +204,34 @@ class PressureDrivenControl:
         else:
             # Within range - maintain current state
             return self.ET_vent_state
+
+    def _get_ST_vent_state_explicit(self, p_ST: float) -> int:
+        """
+        Determine supply tank vent state with explicit open/close thresholds.
+        
+        Used for single-tank venting scenarios with explicit pressure thresholds.
+        
+        Parameters
+        ----------
+        p_ST : float
+            Supply tank pressure [Pa]
+            
+        Returns
+        -------
+        state : int
+            Vent state (0=closed, 1=open)
+        """
+        P = self.params
+        
+        if p_ST > P["p_ST_vent_open"]:
+            # Pressure above open threshold - open vent
+            return 1
+        elif p_ST < P["p_ST_vent_close"]:
+            # Pressure below close threshold - close vent
+            return 0
+        else:
+            # Within hysteresis band - maintain current state
+            return self.ST_vent_state
 
     def _get_vaporizer_valve_state(self, p_ST: float, p_set: float) -> float:
         """
