@@ -46,7 +46,7 @@ class FluidProperties:
         self.backend = backend
 
         if backend == "CoolProp" and not COOLPROP_AVAILABLE:
-            print(f"Warning: CoolProp not available, falling back to polynomial correlations")
+            print("Warning: CoolProp not available, falling back to polynomial correlations")
             self.backend = "polynomial"
 
     def density(self, T=None, P=None, Q=None, U=None):
@@ -328,7 +328,7 @@ def vapor_pressure(T_film, rho_vapor):
     - T_sat(rho_vapor): 6th-order polynomial for saturation temperature
     - P(T): 3rd-order polynomial for vapor pressure in two-phase region
     - For supercritical: Would use REFPROP, here we use ideal gas law
-    
+
     References
     ----------
     Original MATLAB: LLNL_model/vaporpressure.m (lines 7-30)
@@ -336,7 +336,7 @@ def vapor_pressure(T_film, rho_vapor):
     # Handle negative or very small densities
     if rho_vapor < 0:
         rho_vapor = 0.0001
-    
+
     # Saturation temperature from density polynomial (6th order)
     # Exact coefficients from MATLAB vaporpressure.m lines 7-9
     T_sat = (-3.9389254667e-09 * (rho_vapor**6) +
@@ -355,7 +355,7 @@ def vapor_pressure(T_film, rho_vapor):
         T_vapor = T_film
         if T_vapor > 32.937 and T_vapor < 32.938:
             T_vapor = 32.937
-        
+
         # Ideal gas approximation (better than nothing without REFPROP)
         R_specific = 4124.0  # J/kg/K for hydrogen
         P = rho_vapor * R_specific * T_vapor
@@ -367,10 +367,10 @@ def vapor_pressure(T_film, rho_vapor):
         a2 = -6.9432088540
         a1 = 1.1373052580e2
         a0 = -6.9558797798e2
-        
-        P = (a3 * (T_film**3) + a2 * (T_film**2) + 
+
+        P = (a3 * (T_film**3) + a2 * (T_film**2) +
              a1 * T_film + a0) * 1e3  # Convert to Pa
-        
+
         # Ensure positive pressure
         P = max(P, 1e3)
 

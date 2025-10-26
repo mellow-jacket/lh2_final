@@ -14,8 +14,8 @@ This is a simplified initial implementation focusing on mass balance.
 Energy balance and detailed heat transfer will be added in future iterations.
 """
 
-from dataclasses import dataclass, field
-from typing import Optional, Tuple, Callable
+from dataclasses import dataclass
+from typing import Optional
 import numpy as np
 from scipy.integrate import solve_ivp
 
@@ -23,7 +23,7 @@ from lh2sim.parameters import ScenarioConfig
 from lh2sim.properties import FluidProperties
 from lh2sim.geometry import cyl_v_to_h, cylinder_cross_section_area
 from lh2sim.flow import gas_flow
-from lh2sim.control import PressureDrivenControl, PumpDrivenControl, ControlOutputs
+from lh2sim.control import PressureDrivenControl, PumpDrivenControl
 
 
 @dataclass
@@ -329,10 +329,8 @@ class Simulator:
         V_L_receiver = state.m_L_receiver / self.config.physics.rho_liquid if state.m_L_receiver > 0 else 0
         V_v_receiver = V_receiver - V_L_receiver
 
-        if state.m_L_receiver > 1e-6:
-            T_L_receiver = state.U_L_receiver / (state.m_L_receiver * self.config.physics.c_liquid)
-        else:
-            T_L_receiver = self.config.receiver_tank.initial_liquid_temp
+        # Note: T_L_receiver would be computed here but is not currently needed
+        # If needed in future: T_L_receiver = U_L_receiver / (m_L_receiver * c_liquid)
 
         if state.m_v_receiver > 1e-6:
             T_v_receiver = state.U_v_receiver / (state.m_v_receiver * self.config.physics.c_v_vapor)

@@ -7,7 +7,7 @@ including time series of pressures, temperatures, mass flows, and tank levels.
 
 import numpy as np
 import matplotlib.pyplot as plt
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple
 from ..simulation import SimulationResult
 
 
