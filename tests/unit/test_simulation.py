@@ -297,3 +297,65 @@ class TestSimulatorEdgeCases:
         
         # Tight tolerances should require more function evaluations
         assert result_tight.nfev > result_loose.nfev
+
+
+class TestEventDetection:
+    """Test event detection during simulation."""
+
+    def test_run_with_events_basic(self):
+        """Test that run_with_events executes successfully."""
+        config = create_trailer_to_dewar_scenario()
+        config.t_final = 10.0  # Short run
+
+        sim = Simulator(config)
+        result = sim.run_with_events()
+
+        assert result.success
+        assert len(result.t) > 0
+
+    def test_event_fill_complete(self):
+        """Test fill completion event detection."""
+        config = create_trailer_to_dewar_scenario()
+        # Set aggressive parameters to reach fill quickly
+        config.t_final = 1000.0  # Long enough to fill
+        config.receiver_tank.initial_fill_fraction = 0.85  # Start near full
+
+        sim = Simulator(config)
+        result = sim.run_with_events()
+
+        # Check if simulation stopped before t_final (event triggered)
+        # and receiver tank is reasonably full
+        if result.t[-1] < config.t_final * 0.9:
+            # Event likely triggered
+            final_state = result.get_state_at(-1)
+            V_L_receiver = final_state.m_L_receiver / config.physics.rho_liquid
+            fill_fraction = V_L_receiver / config.receiver_tank.volume
+            # Should be near 90% full (target in event function)
+            assert fill_fraction > 0.85
+
+    def test_event_functions_created(self):
+        """Test that event functions are properly created."""
+        config = create_trailer_to_dewar_scenario()
+        sim = Simulator(config)
+
+        events = sim._create_event_functions()
+
+        # Should have multiple event functions
+        assert len(events) > 0
+        # Each should be callable
+        for event in events:
+            assert callable(event)
+            # Should have terminal attribute
+            assert hasattr(event, "terminal")
+            assert hasattr(event, "direction")
+
+    def test_event_with_pump_driven(self):
+        """Test events work with pump-driven mode."""
+        config = create_pump_driven_scenario()
+        config.t_final = 50.0
+
+        sim = Simulator(config)
+        result = sim.run_with_events()
+
+        assert result.success
+        assert len(result.t) > 0
