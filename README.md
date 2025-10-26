@@ -1,2 +1,2 @@
 # lh2_final
-another try
+Follow the instructions
