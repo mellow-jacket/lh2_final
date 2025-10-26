@@ -239,19 +239,19 @@ Converting MATLAB liquid hydrogen (LH2) transfer simulation code to Python, base
 ### Testing Status
 
 ### Unit Tests Summary
-- **Total**: 138 tests passing, 1 skipped, 0 failed ✨ UPDATED
-- **Geometry**: 10/10 passing (87% coverage)
-- **Flow**: 17/17 passing (96% coverage)
-- **Properties**: 21/21 passing (63% coverage) ✨ UPDATED
+- **Total**: 153 tests passing, 1 skipped, 0 failed ✨ UPDATED
+- **Geometry**: 17/17 passing (87% coverage) ✨ UPDATED (+7 edge cases)
+- **Flow**: 23/23 passing (96% coverage) ✨ UPDATED (+6 edge cases)
+- **Properties**: 24/24 passing (63% coverage) ✨ UPDATED (+3 reference table tests)
 - **Control**: 16/16 passing (95% coverage)
 - **Parameters**: 17/17 passing (90% coverage)
-- **Simulation**: 20/21 passing (95% coverage, 1 skipped) ✨ UPDATED
-- **Visualization**: 16/16 passing (99% coverage)
-- **Energy Balance**: 21/21 passing (95% coverage) ✨ NEW
+- **Simulation**: 20/21 passing (95% coverage, 1 skipped)
+- **Visualization**: 16/16 passing (99% coverage) - NO WARNINGS ✨ FIXED
+- **Energy Balance**: 20/20 passing (93% coverage)
 - **Overall Coverage**: 92% ✨ UPDATED
 
 ### Test Quality
-- Edge cases covered (empty, full tanks)
+- Edge cases covered (empty, full tanks, boundaries)
 - Physical validity checks (pressure ranges, flow directions)
 - Realistic LH2 conditions tested (20-30K, 1-10 bar)
 - Control logic transitions verified
@@ -259,10 +259,13 @@ Converting MATLAB liquid hydrogen (LH2) transfer simulation code to Python, base
 - Mass conservation validated (machine precision)
 - Flow direction correctness verified
 - Temperature evolution validated
+- Choked/non-choked flow regimes validated ✨ NEW
+- Polynomial coefficient accuracy verified with reference table ✨ NEW
+- Convergence at boundaries verified ✨ NEW
 
 ---
 
 Last Updated: 2025-10-26
-Version: 0.3.1
-Tests: 138/139 passing (1 skipped)
-Status: ✅ Core complete, bug fixes implemented, numerically stable
+Version: 0.3.2
+Tests: 153/154 passing (1 skipped)
+Status: ✅ Core complete, enhanced test coverage, all warnings fixed, DIFFERENCES.md Items #1 and #4 complete
