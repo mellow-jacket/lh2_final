@@ -12,6 +12,7 @@ from .visualization import (
     plot_masses,
     plot_densities,
     plot_summary_dashboard,
+    plot_single_tank_venting,
 )
 
 __all__ = [
@@ -21,4 +22,5 @@ __all__ = [
     "plot_masses",
     "plot_densities",
     "plot_summary_dashboard",
+    "plot_single_tank_venting",
 ]

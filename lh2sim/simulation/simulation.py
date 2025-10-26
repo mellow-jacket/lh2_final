@@ -141,7 +141,10 @@ class SimulationResult:
         T_L_ET, T_v_ET: End tank liquid/vapor temperatures [K]
         rho_L_ST, rho_v_ST: Supply tank liquid/vapor densities [kg/m³]
         rho_L_ET, rho_v_ET: End tank liquid/vapor densities [kg/m³]
+        h_L_ST: Supply tank liquid height [m]
         h_L_ET: End tank liquid height [m]
+        U_L_ST, U_v_ST: Supply tank liquid/vapor internal energies [J]
+        U_L_ET, U_v_ET: End tank liquid/vapor internal energies [J]
     """
 
     t: np.ndarray
@@ -167,7 +170,12 @@ class SimulationResult:
     rho_v_ST: Optional[np.ndarray] = None
     rho_L_ET: Optional[np.ndarray] = None
     rho_v_ET: Optional[np.ndarray] = None
+    h_L_ST: Optional[np.ndarray] = None
     h_L_ET: Optional[np.ndarray] = None
+    U_L_ST: Optional[np.ndarray] = None
+    U_v_ST: Optional[np.ndarray] = None
+    U_L_ET: Optional[np.ndarray] = None
+    U_v_ET: Optional[np.ndarray] = None
 
     def __post_init__(self):
         """Initialize time alias."""
@@ -896,7 +904,25 @@ class Simulator:
         result.rho_v_ST = np.where(V_v_ST > 1e-6, result.m_v_ST / V_v_ST, 0.0)
         result.rho_v_ET = np.where(V_v_ET > 1e-6, result.m_v_ET / V_v_ET, 0.0)
 
+        # Internal energies
+        result.U_L_ST = U_L_ST
+        result.U_v_ST = U_v_ST
+        result.U_L_ET = U_L_ET
+        result.U_v_ET = U_v_ET
+
         # Liquid heights
+        # Supply tank
+        if self.config.supply_tank.geometry == "vertical_cylinder":
+            result.h_L_ST = V_L_ST / self.A_supply
+        else:  # horizontal_cylinder
+            result.h_L_ST = np.array(
+                [
+                    cyl_v_to_h(V=v, R=self.config.supply_tank.radius, L=self.config.supply_tank.length_or_height)
+                    for v in V_L_ST
+                ]
+            )
+        
+        # Receiver tank
         if self.config.receiver_tank.geometry == "vertical_cylinder":
             result.h_L_ET = V_L_ET / self.A_receiver
         else:  # horizontal_cylinder
