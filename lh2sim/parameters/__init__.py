@@ -147,7 +147,10 @@ class TransferParameters:
         pipe_diameter: Transfer line diameter [m]
         pipe_roughness: Pipe wall roughness [m]
         vaporizer_area: Vaporizer valve effective area [m²] (for pressure-driven)
-        pump_flow_rate: Pump volumetric flow rate [m³/s] (for pump-driven)
+        pump_flow_rate: Pump volumetric flow rate [m³/s] (for pump-driven, base rate)
+        pump_flow_slow: Pump mass flow rate for slow fill [kg/s] (for pump-driven)
+        pump_flow_fast: Pump mass flow rate for fast fill [kg/s] (for pump-driven)
+        pump_flow_topping: Pump mass flow rate for topping [kg/s] (for pump-driven)
         pump_efficiency: Pump efficiency [-] (for pump-driven)
         
         # Control thresholds
@@ -169,7 +172,10 @@ class TransferParameters:
     
     # Mode-specific parameters
     vaporizer_area: float = 0.0  # m² (only for pressure-driven)
-    pump_flow_rate: float = 0.0  # m³/s (only for pump-driven)
+    pump_flow_rate: float = 0.0  # m³/s (only for pump-driven, base rate)
+    pump_flow_slow: float = 0.0  # kg/s (pump-driven slow fill rate)
+    pump_flow_fast: float = 0.0  # kg/s (pump-driven fast fill rate)
+    pump_flow_topping: float = 0.0  # kg/s (pump-driven topping rate)
     pump_efficiency: float = 0.8  # [-] (only for pump-driven)
     
     # Control thresholds (as fractions of receiver tank height)
@@ -194,8 +200,9 @@ class TransferParameters:
         
         if self.mode == "pressure_driven" and self.vaporizer_area <= 0:
             raise ValueError("Pressure-driven mode requires positive vaporizer area")
-        if self.mode == "pump_driven" and self.pump_flow_rate <= 0:
-            raise ValueError("Pump-driven mode requires positive pump flow rate")
+        if self.mode == "pump_driven":
+            if self.pump_flow_rate <= 0 and (self.pump_flow_slow <= 0 or self.pump_flow_fast <= 0):
+                raise ValueError("Pump-driven mode requires positive pump flow rate(s)")
         
         # Validate thresholds
         if not (0 < self.slow_fill_threshold < self.fast_fill_threshold < self.topping_fill_threshold < 1):
@@ -264,7 +271,7 @@ def create_trailer_to_dewar_scenario() -> ScenarioConfig:
         volume=18.0,  # m³
         radius=1.0,  # m
         length_or_height=18.0 / (np.pi * 1.0**2),  # L = V/A
-        initial_pressure=5.0 * bar_to_pa,  # Higher pressure for transfer
+        initial_pressure=1.5 * bar_to_pa,  # Closer to saturation pressure
         initial_liquid_temp=21.0,  # K
         initial_vapor_temp=21.5,  # K (slightly warmer)
         initial_fill_fraction=0.9,
@@ -281,7 +288,7 @@ def create_trailer_to_dewar_scenario() -> ScenarioConfig:
         volume=18.0,  # m³
         radius=1.0,  # m
         length_or_height=18.0 / (np.pi * 1.0**2),  # H = V/A
-        initial_pressure=2.0 * bar_to_pa,  # Lower pressure to drive flow
+        initial_pressure=1.2 * bar_to_pa,  # Closer to supply pressure
         initial_liquid_temp=20.0,  # K (slightly colder)
         initial_vapor_temp=20.5,  # K
         initial_fill_fraction=0.1,  # Start nearly empty
@@ -299,8 +306,8 @@ def create_trailer_to_dewar_scenario() -> ScenarioConfig:
     # Transfer parameters (pressure-driven)
     transfer = TransferParameters(
         mode="pressure_driven",
-        transfer_valve_area=0.002,  # m²
-        vaporizer_area=0.0005,  # m²
+        transfer_valve_area=0.0001,  # m² (reduced for realistic flow)
+        vaporizer_area=0.00005,  # m² (reduced proportionally)
         pipe_length=10.0,  # m
         pipe_diameter=0.05,  # m
     )
@@ -334,11 +341,17 @@ def create_pump_driven_scenario() -> ScenarioConfig:
     config.name = "Trailer-to-Dewar (Pump-Driven)"
     config.description = "Pump-driven transfer from horizontal trailer to vertical dewar"
     
-    # Update transfer parameters
+    # Update transfer parameters with regime-specific flow rates
+    # Typical LH2 transfer: 100-1000 kg/hr depending on regime
+    rho_liquid = config.physics.rho_liquid  # ~70.9 kg/m³
+    
     config.transfer = TransferParameters(
         mode="pump_driven",
-        transfer_valve_area=0.002,  # m²
-        pump_flow_rate=0.005,  # m³/s (~18 m³/hr)
+        transfer_valve_area=0.0001,  # m² (not used in pump mode but required)
+        pump_flow_rate=0.001,  # m³/s base rate
+        pump_flow_slow=rho_liquid * 0.0005,  # kg/s (~35 kg/s = ~127 kg/hr)
+        pump_flow_fast=rho_liquid * 0.002,  # kg/s (~142 kg/s = ~511 kg/hr)
+        pump_flow_topping=rho_liquid * 0.0003,  # kg/s (~21 kg/s = ~76 kg/hr)
         pump_efficiency=0.8,
         pipe_length=10.0,  # m
         pipe_diameter=0.05,  # m

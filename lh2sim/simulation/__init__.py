@@ -221,8 +221,8 @@ class Simulator:
         T_v_supply = self.config.supply_tank.initial_vapor_temp
         p_supply = self.config.supply_tank.initial_pressure
         
-        # Get densities at specified pressure
-        rho_L_supply = self.properties.density(T_L_supply, p_supply)
+        # Get densities - use constant values for consistency with derivatives
+        rho_L_supply = self.config.physics.rho_liquid
         # For vapor, use ideal gas law to be consistent with derivative calculation
         rho_v_supply = p_supply / (self.config.physics.R_vapor * T_v_supply)
         
@@ -247,8 +247,8 @@ class Simulator:
         T_v_receiver = self.config.receiver_tank.initial_vapor_temp
         p_receiver = self.config.receiver_tank.initial_pressure
         
-        # Get densities at specified pressure
-        rho_L_receiver = self.properties.density(T_L_receiver, p_receiver)
+        # Get densities - use constant values for consistency
+        rho_L_receiver = self.config.physics.rho_liquid
         # For vapor, use ideal gas law to be consistent
         rho_v_receiver = p_receiver / (self.config.physics.R_vapor * T_v_receiver)
         
@@ -302,9 +302,17 @@ class Simulator:
         V_L_supply = state.m_L_supply / self.config.physics.rho_liquid if state.m_L_supply > 0 else 0
         V_v_supply = V_supply - V_L_supply
         
-        # Approximate temperatures from internal energies (simplified)
-        T_L_supply = self.config.supply_tank.initial_liquid_temp
-        T_v_supply = self.config.supply_tank.initial_vapor_temp
+        # Approximate temperatures from internal energies
+        # T = U / (m * c_p) for simplified energy balance
+        if state.m_L_supply > 1e-6:
+            T_L_supply = state.U_L_supply / (state.m_L_supply * self.config.physics.c_liquid)
+        else:
+            T_L_supply = self.config.supply_tank.initial_liquid_temp
+            
+        if state.m_v_supply > 1e-6:
+            T_v_supply = state.U_v_supply / (state.m_v_supply * self.config.physics.c_v_vapor)
+        else:
+            T_v_supply = self.config.supply_tank.initial_vapor_temp
         
         # Approximate pressures (simplified - use ideal gas for vapor)
         if V_v_supply > 1e-6:
@@ -317,8 +325,15 @@ class Simulator:
         V_L_receiver = state.m_L_receiver / self.config.physics.rho_liquid if state.m_L_receiver > 0 else 0
         V_v_receiver = V_receiver - V_L_receiver
         
-        T_L_receiver = self.config.receiver_tank.initial_liquid_temp
-        T_v_receiver = self.config.receiver_tank.initial_vapor_temp
+        if state.m_L_receiver > 1e-6:
+            T_L_receiver = state.U_L_receiver / (state.m_L_receiver * self.config.physics.c_liquid)
+        else:
+            T_L_receiver = self.config.receiver_tank.initial_liquid_temp
+            
+        if state.m_v_receiver > 1e-6:
+            T_v_receiver = state.U_v_receiver / (state.m_v_receiver * self.config.physics.c_v_vapor)
+        else:
+            T_v_receiver = self.config.receiver_tank.initial_vapor_temp
         
         if V_v_receiver > 1e-6:
             p_receiver = state.m_v_receiver * self.config.physics.R_vapor * T_v_receiver / V_v_receiver
@@ -376,12 +391,17 @@ class Simulator:
         dm_L_receiver_dt = mdot_transfer  # Gains liquid
         dm_v_receiver_dt = 0.0  # Simplified - no phase change
         
-        # Energy balance derivatives (simplified - using specific energy)
+        # Energy balance derivatives with heat leaks
+        # Transfer term: specific internal energy of liquid being transferred
         u_transfer = self.config.physics.c_liquid * T_L_supply
-        dU_L_supply_dt = -mdot_transfer * u_transfer
-        dU_v_supply_dt = 0.0
-        dU_L_receiver_dt = mdot_transfer * u_transfer
-        dU_v_receiver_dt = 0.0
+        
+        # Supply tank energy balance
+        dU_L_supply_dt = -mdot_transfer * u_transfer + self.config.supply_tank.heat_leak_liquid
+        dU_v_supply_dt = self.config.supply_tank.heat_leak_vapor
+        
+        # Receiver tank energy balance
+        dU_L_receiver_dt = mdot_transfer * u_transfer + self.config.receiver_tank.heat_leak_liquid
+        dU_v_receiver_dt = self.config.receiver_tank.heat_leak_vapor
         
         # Return derivatives
         return np.array([
@@ -485,11 +505,34 @@ class Simulator:
         V_L_ET = result.m_L_ET / self.config.physics.rho_liquid
         V_v_ET = V_receiver - V_L_ET
         
-        # Simplified temperatures (constant for this version)
-        result.T_L_ST = np.full(n_points, self.config.supply_tank.initial_liquid_temp)
-        result.T_v_ST = np.full(n_points, self.config.supply_tank.initial_vapor_temp)
-        result.T_L_ET = np.full(n_points, self.config.receiver_tank.initial_liquid_temp)
-        result.T_v_ET = np.full(n_points, self.config.receiver_tank.initial_vapor_temp)
+        # Extract internal energy time series
+        U_L_ST = result.states[4, :]
+        U_v_ST = result.states[5, :]
+        U_L_ET = result.states[6, :]
+        U_v_ET = result.states[7, :]
+        
+        # Compute temperatures from internal energies
+        # T = U / (m * c_p)
+        result.T_L_ST = np.where(
+            result.m_L_ST > 1e-6,
+            U_L_ST / (result.m_L_ST * self.config.physics.c_liquid),
+            self.config.supply_tank.initial_liquid_temp
+        )
+        result.T_v_ST = np.where(
+            result.m_v_ST > 1e-6,
+            U_v_ST / (result.m_v_ST * self.config.physics.c_v_vapor),
+            self.config.supply_tank.initial_vapor_temp
+        )
+        result.T_L_ET = np.where(
+            result.m_L_ET > 1e-6,
+            U_L_ET / (result.m_L_ET * self.config.physics.c_liquid),
+            self.config.receiver_tank.initial_liquid_temp
+        )
+        result.T_v_ET = np.where(
+            result.m_v_ET > 1e-6,
+            U_v_ET / (result.m_v_ET * self.config.physics.c_v_vapor),
+            self.config.receiver_tank.initial_vapor_temp
+        )
         
         # Compute pressures using ideal gas
         R_vapor = self.config.physics.R_vapor
