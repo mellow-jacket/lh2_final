@@ -264,7 +264,7 @@ def create_trailer_to_dewar_scenario() -> ScenarioConfig:
         volume=18.0,  # m³
         radius=1.0,  # m
         length_or_height=18.0 / (np.pi * 1.0**2),  # L = V/A
-        initial_pressure=3.0 * bar_to_pa,
+        initial_pressure=5.0 * bar_to_pa,  # Higher pressure for transfer
         initial_liquid_temp=21.0,  # K
         initial_vapor_temp=21.5,  # K (slightly warmer)
         initial_fill_fraction=0.9,
@@ -281,9 +281,9 @@ def create_trailer_to_dewar_scenario() -> ScenarioConfig:
         volume=18.0,  # m³
         radius=1.0,  # m
         length_or_height=18.0 / (np.pi * 1.0**2),  # H = V/A
-        initial_pressure=3.0 * bar_to_pa,
-        initial_liquid_temp=21.0,  # K
-        initial_vapor_temp=21.5,  # K
+        initial_pressure=2.0 * bar_to_pa,  # Lower pressure to drive flow
+        initial_liquid_temp=20.0,  # K (slightly colder)
+        initial_vapor_temp=20.5,  # K
         initial_fill_fraction=0.1,  # Start nearly empty
         max_working_pressure=10.0 * bar_to_pa,
         vent_area=0.001,  # m²
