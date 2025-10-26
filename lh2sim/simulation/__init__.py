@@ -94,12 +94,22 @@ class SimulationResult:
     Results from a simulation run.
     
     Attributes:
-        t: Time array [s]
+        t: Time array [s] (alias: time)
         states: Array of state vectors over time
         success: Whether simulation completed successfully
         message: Status message from solver
         nfev: Number of function evaluations
         njev: Number of Jacobian evaluations
+        
+    Computed time series (added by post-processing):
+        m_L_ST, m_v_ST: Supply tank liquid/vapor masses [kg]
+        m_L_ET, m_v_ET: End tank liquid/vapor masses [kg]
+        p_v_ST, p_v_ET: Tank vapor pressures [Pa]
+        T_L_ST, T_v_ST: Supply tank liquid/vapor temperatures [K]
+        T_L_ET, T_v_ET: End tank liquid/vapor temperatures [K]
+        rho_L_ST, rho_v_ST: Supply tank liquid/vapor densities [kg/m³]
+        rho_L_ET, rho_v_ET: End tank liquid/vapor densities [kg/m³]
+        h_L_ET: End tank liquid height [m]
     """
     t: np.ndarray
     states: np.ndarray
@@ -107,6 +117,29 @@ class SimulationResult:
     message: str
     nfev: int
     njev: int
+    
+    # Optional enriched data (added by post-processing)
+    time: Optional[np.ndarray] = None  # Alias for t
+    m_L_ST: Optional[np.ndarray] = None
+    m_v_ST: Optional[np.ndarray] = None
+    m_L_ET: Optional[np.ndarray] = None
+    m_v_ET: Optional[np.ndarray] = None
+    p_v_ST: Optional[np.ndarray] = None
+    p_v_ET: Optional[np.ndarray] = None
+    T_L_ST: Optional[np.ndarray] = None
+    T_v_ST: Optional[np.ndarray] = None
+    T_L_ET: Optional[np.ndarray] = None
+    T_v_ET: Optional[np.ndarray] = None
+    rho_L_ST: Optional[np.ndarray] = None
+    rho_v_ST: Optional[np.ndarray] = None
+    rho_L_ET: Optional[np.ndarray] = None
+    rho_v_ET: Optional[np.ndarray] = None
+    h_L_ET: Optional[np.ndarray] = None
+    
+    def __post_init__(self):
+        """Initialize time alias."""
+        if self.time is None:
+            self.time = self.t
     
     def get_state_at(self, index: int) -> SimulationState:
         """Get simulation state at a specific time index."""
@@ -364,6 +397,7 @@ class Simulator:
     
     def run(
         self,
+        t_end: Optional[float] = None,
         rtol: float = 1e-6,
         atol: float = 1e-8,
         max_step: Optional[float] = None,
@@ -372,6 +406,7 @@ class Simulator:
         Run the simulation.
         
         Args:
+            t_end: End time [s] (if None, uses config.t_final)
             rtol: Relative tolerance for ODE solver
             atol: Absolute tolerance for ODE solver
             max_step: Maximum step size [s] (None for automatic)
@@ -384,7 +419,9 @@ class Simulator:
         y0 = state0.to_array()
         
         # Time span
-        t_span = (0.0, self.config.t_final)
+        if t_end is None:
+            t_end = self.config.t_final
+        t_span = (0.0, t_end)
         
         # Run ODE integration
         kwargs = {
@@ -403,7 +440,7 @@ class Simulator:
         
         sol = solve_ivp(**kwargs)
         
-        return SimulationResult(
+        result = SimulationResult(
             t=sol.t,
             states=sol.y,
             success=sol.success,
@@ -411,6 +448,81 @@ class Simulator:
             nfev=sol.nfev,
             njev=sol.njev if sol.njev is not None else 0,
         )
+        
+        # Post-process to add derived quantities for visualization
+        self._enrich_result(result)
+        
+        return result
+    
+    def _enrich_result(self, result: SimulationResult):
+        """
+        Post-process simulation result to add derived quantities.
+        
+        This adds time series for visualization:
+        - Masses (already in state)
+        - Pressures (computed from ideal gas)
+        - Temperatures (simplified - constant for now)
+        - Densities (constant for now)
+        - Liquid heights
+        
+        Args:
+            result: SimulationResult to enrich (modified in-place)
+        """
+        n_points = len(result.t)
+        
+        # Extract mass time series
+        result.m_L_ST = result.states[0, :]
+        result.m_v_ST = result.states[1, :]
+        result.m_L_ET = result.states[2, :]
+        result.m_v_ET = result.states[3, :]
+        
+        # Compute volumes
+        V_supply = self.config.supply_tank.volume
+        V_receiver = self.config.receiver_tank.volume
+        
+        V_L_ST = result.m_L_ST / self.config.physics.rho_liquid
+        V_v_ST = V_supply - V_L_ST
+        V_L_ET = result.m_L_ET / self.config.physics.rho_liquid
+        V_v_ET = V_receiver - V_L_ET
+        
+        # Simplified temperatures (constant for this version)
+        result.T_L_ST = np.full(n_points, self.config.supply_tank.initial_liquid_temp)
+        result.T_v_ST = np.full(n_points, self.config.supply_tank.initial_vapor_temp)
+        result.T_L_ET = np.full(n_points, self.config.receiver_tank.initial_liquid_temp)
+        result.T_v_ET = np.full(n_points, self.config.receiver_tank.initial_vapor_temp)
+        
+        # Compute pressures using ideal gas
+        R_vapor = self.config.physics.R_vapor
+        result.p_v_ST = np.where(
+            V_v_ST > 1e-6,
+            result.m_v_ST * R_vapor * result.T_v_ST / V_v_ST,
+            self.config.supply_tank.max_working_pressure
+        )
+        result.p_v_ET = np.where(
+            V_v_ET > 1e-6,
+            result.m_v_ET * R_vapor * result.T_v_ET / V_v_ET,
+            self.config.receiver_tank.max_working_pressure
+        )
+        
+        # Densities (simplified - constant)
+        result.rho_L_ST = np.full(n_points, self.config.physics.rho_liquid)
+        result.rho_L_ET = np.full(n_points, self.config.physics.rho_liquid)
+        result.rho_v_ST = np.where(V_v_ST > 1e-6, result.m_v_ST / V_v_ST, 0.0)
+        result.rho_v_ET = np.where(V_v_ET > 1e-6, result.m_v_ET / V_v_ET, 0.0)
+        
+        # Liquid heights
+        if self.config.receiver_tank.geometry == "vertical_cylinder":
+            result.h_L_ET = V_L_ET / self.A_receiver
+        else:  # horizontal_cylinder
+            # For arrays, we need to vectorize cyl_v_to_h
+            result.h_L_ET = np.array([
+                cyl_v_to_h(
+                    V=v,
+                    R=self.config.receiver_tank.radius,
+                    L=self.config.receiver_tank.length_or_height
+                )
+                for v in V_L_ET
+            ])
 
 
 # Export key classes
