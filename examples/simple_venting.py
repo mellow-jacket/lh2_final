@@ -5,7 +5,7 @@ This example demonstrates a single-tank venting scenario:
 - Tank starts 50% full of LH2 at 10.5 bar (above setpoint)
 - Vent valve opens when pressure exceeds 10.0 bar
 - Vent valve closes when pressure drops below 9.9 bar
-- Heat input (750W) drives continuous venting to maintain pressure
+- Heat input (750 W) drives continuous venting to maintain pressure
 - Demonstrates vent control mechanism and liquid level decrease
 
 This scenario shows:
