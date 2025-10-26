@@ -22,7 +22,7 @@ import numpy as np
 class TankParameters:
     """
     Parameters for a single tank (supply or receiving).
-    
+
     Attributes:
         name: Tank identifier (e.g., "ST", "ET", "Trailer", "Dewar")
         geometry: Tank geometry type
@@ -40,30 +40,31 @@ class TankParameters:
         heat_leak_vapor: Heat leak to vapor [W]
         heat_leak_wall: Heat leak to wall [W] (if wall_mass > 0)
     """
+
     name: str
     geometry: Literal["horizontal_cylinder", "vertical_cylinder", "sphere"]
     volume: float
     radius: float
     length_or_height: float
-    
+
     # Initial conditions
     initial_pressure: float
     initial_liquid_temp: float
     initial_vapor_temp: float
     initial_fill_fraction: float
-    
+
     # Operating limits
     max_working_pressure: float
-    
+
     # Vent parameters
     vent_area: float
-    
+
     # Thermal parameters
     wall_mass: float = 0.0  # kg, 0 means no wall thermal mass
     heat_leak_liquid: float = 0.0  # W
     heat_leak_vapor: float = 0.0  # W
     heat_leak_wall: float = 0.0  # W
-    
+
     def __post_init__(self):
         """Validate parameters after initialization."""
         if self.volume <= 0:
@@ -86,10 +87,10 @@ class TankParameters:
 class PhysicsParameters:
     """
     Thermophysical constants and correlations for hydrogen.
-    
+
     These are typically constant for a given simulation and follow REFPROP/CoolProp values.
     For ParaHydrogen at typical LH2 conditions.
-    
+
     Attributes:
         T_critical: Critical temperature [K]
         p_critical: Critical pressure [Pa]
@@ -103,28 +104,29 @@ class PhysicsParameters:
         mu_vapor: Vapor dynamic viscosity [Pa·s]
         kappa_vapor: Vapor thermal conductivity [W/m/K]
     """
+
     # Critical properties
     T_critical: float = 32.938  # K
     p_critical: float = 1.2884e6  # Pa (186.49 psi)
-    
+
     # Liquid properties (reference at ~1 bar, 20K)
     rho_liquid: float = 70.9  # kg/m³
     c_liquid: float = 9702.5  # J/kg/K
     kappa_liquid: float = 0.10061  # W/m/K
     mu_liquid: float = 13.54e-6  # Pa·s
-    
+
     # Vapor properties
     R_vapor: float = 4124.0  # J/kg/K
     c_v_vapor: float = 6490.0  # J/kg/K
-    gamma_vapor: float = 5.0/3.0  # dimensionless
+    gamma_vapor: float = 5.0 / 3.0  # dimensionless
     mu_vapor: float = 0.98e-6  # Pa·s
     kappa_vapor: float = 0.0166  # W/m/K
-    
+
     @property
     def c_p_vapor(self) -> float:
         """Vapor specific heat at constant pressure [J/kg/K]."""
         return self.c_v_vapor + self.R_vapor
-    
+
     def __post_init__(self):
         """Validate physical parameters."""
         if self.T_critical <= 0:
@@ -139,7 +141,7 @@ class PhysicsParameters:
 class TransferParameters:
     """
     Parameters for transfer control and valves/pipes.
-    
+
     Attributes:
         mode: Transfer mode (pressure-driven or pump-driven)
         transfer_valve_area: Effective area of main transfer valve [m²]
@@ -152,7 +154,7 @@ class TransferParameters:
         pump_flow_fast: Pump mass flow rate for fast fill [kg/s] (for pump-driven)
         pump_flow_topping: Pump mass flow rate for topping [kg/s] (for pump-driven)
         pump_efficiency: Pump efficiency [-] (for pump-driven)
-        
+
         # Control thresholds
         slow_fill_threshold: Height threshold for slow fill [m]
         fast_fill_threshold: Height threshold for fast fill [m]
@@ -162,14 +164,15 @@ class TransferParameters:
         ST_vent_open_threshold: Pressure ratio to open ST vent [-]
         ST_vent_close_threshold: Pressure ratio to close ST vent [-]
     """
+
     mode: Literal["pressure_driven", "pump_driven"]
-    
+
     # Transfer system geometry
     transfer_valve_area: float
     pipe_length: float = 10.0  # m
     pipe_diameter: float = 0.05  # m
     pipe_roughness: float = 1.5e-5  # m (smooth steel)
-    
+
     # Mode-specific parameters
     vaporizer_area: float = 0.0  # m² (only for pressure-driven)
     pump_flow_rate: float = 0.0  # m³/s (only for pump-driven, base rate)
@@ -177,18 +180,18 @@ class TransferParameters:
     pump_flow_fast: float = 0.0  # kg/s (pump-driven fast fill rate)
     pump_flow_topping: float = 0.0  # kg/s (pump-driven topping rate)
     pump_efficiency: float = 0.8  # [-] (only for pump-driven)
-    
+
     # Control thresholds (as fractions of receiver tank height)
     slow_fill_threshold: float = 0.2  # 20% full
     fast_fill_threshold: float = 0.5  # 50% full
     topping_fill_threshold: float = 0.9  # 90% full
-    
+
     # Vent control (pressure ratios relative to MWP)
     ET_vent_open_threshold: float = 1.05  # Open at 105% of target
     ET_vent_close_threshold: float = 0.95  # Close at 95% of target
     ST_vent_open_threshold: float = 1.05
     ST_vent_close_threshold: float = 0.95
-    
+
     def __post_init__(self):
         """Validate transfer parameters."""
         if self.transfer_valve_area <= 0:
@@ -197,13 +200,13 @@ class TransferParameters:
             raise ValueError("Pipe length must be positive")
         if self.pipe_diameter <= 0:
             raise ValueError("Pipe diameter must be positive")
-        
+
         if self.mode == "pressure_driven" and self.vaporizer_area <= 0:
             raise ValueError("Pressure-driven mode requires positive vaporizer area")
         if self.mode == "pump_driven":
             if self.pump_flow_rate <= 0 and (self.pump_flow_slow <= 0 or self.pump_flow_fast <= 0):
                 raise ValueError("Pump-driven mode requires positive pump flow rate(s)")
-        
+
         # Validate thresholds
         if not (0 < self.slow_fill_threshold < self.fast_fill_threshold < self.topping_fill_threshold < 1):
             raise ValueError("Fill thresholds must be in order: 0 < slow < fast < topping < 1")
@@ -213,10 +216,10 @@ class TransferParameters:
 class ScenarioConfig:
     """
     Complete configuration for an LH2 transfer simulation scenario.
-    
+
     This is the top-level configuration object that contains all parameters
     needed to run a simulation.
-    
+
     Attributes:
         name: Scenario name/identifier
         description: Human-readable description
@@ -227,6 +230,7 @@ class ScenarioConfig:
         t_final: Simulation end time [s]
         property_backend: Property calculation backend to use
     """
+
     name: str
     description: str
     supply_tank: TankParameters
@@ -235,16 +239,16 @@ class ScenarioConfig:
     transfer: TransferParameters
     t_final: float
     property_backend: Literal["CoolProp", "polynomial"] = "CoolProp"
-    
+
     def __post_init__(self):
         """Validate complete scenario configuration."""
         if self.t_final <= 0:
             raise ValueError("Simulation time must be positive")
-        
+
         # Ensure tank names are distinct
         if self.supply_tank.name == self.receiver_tank.name:
             raise ValueError("Supply and receiver tanks must have different names")
-        
+
         # Validate initial pressures are reasonable
         if self.supply_tank.initial_pressure >= self.supply_tank.max_working_pressure:
             raise ValueError("Supply tank initial pressure exceeds max working pressure")
@@ -255,15 +259,15 @@ class ScenarioConfig:
 def create_trailer_to_dewar_scenario() -> ScenarioConfig:
     """
     Create default Trailer-to-Dewar scenario (pressure-driven).
-    
+
     Based on LLNL reference model: horizontal trailer to vertical dewar.
-    
+
     Returns:
         ScenarioConfig for trailer-to-dewar transfer
     """
     # Constants
     bar_to_pa = 1e5
-    
+
     # Supply tank (Trailer - horizontal cylinder)
     supply_tank = TankParameters(
         name="Trailer",
@@ -280,7 +284,7 @@ def create_trailer_to_dewar_scenario() -> ScenarioConfig:
         heat_leak_liquid=200.0,  # W
         heat_leak_vapor=40.0,  # W
     )
-    
+
     # Receiver tank (Dewar - vertical cylinder)
     receiver_tank = TankParameters(
         name="Dewar",
@@ -299,10 +303,10 @@ def create_trailer_to_dewar_scenario() -> ScenarioConfig:
         heat_leak_vapor=0.0,  # W
         heat_leak_wall=100.0,  # W
     )
-    
+
     # Physics parameters (default para-hydrogen)
     physics = PhysicsParameters()
-    
+
     # Transfer parameters (pressure-driven)
     transfer = TransferParameters(
         mode="pressure_driven",
@@ -311,7 +315,7 @@ def create_trailer_to_dewar_scenario() -> ScenarioConfig:
         pipe_length=10.0,  # m
         pipe_diameter=0.05,  # m
     )
-    
+
     return ScenarioConfig(
         name="Trailer-to-Dewar (Pressure-Driven)",
         description="LLNL reference scenario: horizontal trailer to vertical dewar, pressure-driven transfer",
@@ -327,24 +331,24 @@ def create_trailer_to_dewar_scenario() -> ScenarioConfig:
 def create_pump_driven_scenario() -> ScenarioConfig:
     """
     Create pump-driven transfer scenario.
-    
+
     Similar geometry to pressure-driven but uses pump instead of pressure difference.
     Based on paper model pump-driven variant.
-    
+
     Returns:
         ScenarioConfig for pump-driven transfer
     """
     # Start with pressure-driven scenario
     config = create_trailer_to_dewar_scenario()
-    
+
     # Modify for pump-driven
     config.name = "Trailer-to-Dewar (Pump-Driven)"
     config.description = "Pump-driven transfer from horizontal trailer to vertical dewar"
-    
+
     # Update transfer parameters with regime-specific flow rates
     # Typical LH2 transfer: 100-1000 kg/hr depending on regime
     rho_liquid = config.physics.rho_liquid  # ~70.9 kg/m³
-    
+
     config.transfer = TransferParameters(
         mode="pump_driven",
         transfer_valve_area=0.0001,  # m² (not used in pump mode but required)
@@ -356,14 +360,14 @@ def create_pump_driven_scenario() -> ScenarioConfig:
         pipe_length=10.0,  # m
         pipe_diameter=0.05,  # m
     )
-    
+
     return config
 
 
 # Export key classes
 __all__ = [
     "TankParameters",
-    "PhysicsParameters", 
+    "PhysicsParameters",
     "TransferParameters",
     "ScenarioConfig",
     "create_trailer_to_dewar_scenario",
