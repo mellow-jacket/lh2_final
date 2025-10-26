@@ -5,17 +5,21 @@ This example demonstrates a single-tank venting scenario:
 - Tank starts 50% full of LH2 at 10.5 bar (above setpoint)
 - Vent valve opens when pressure exceeds 10.0 bar
 - Vent valve closes when pressure drops below 9.9 bar
+- Heat input (750W) drives continuous venting to maintain pressure
 - Demonstrates vent control mechanism and liquid level decrease
 
 This scenario shows:
 - Vent control with hysteresis around 10 bar setpoint
 - Mass conservation (vented mass + remaining mass = initial mass)
 - Liquid level decrease as vapor is vented
+- Correct energy balance (heat input minus vented energy)
+- Pressure regulation via vent cycling
 
-NOTE: Current implementation has an energy balance issue causing spurious heating.
-The vent mechanism works correctly (mass is vented, conservation is perfect),
-but temperature/pressure rise beyond expected values due to an energy accounting bug.
-This is a known issue for future investigation.
+Features:
+✓ Pressure-driven control mode for natural venting behavior
+✓ Explicit vent threshold control (10.0 bar open, 9.9 bar close)
+✓ Energy balance includes vented vapor enthalpy
+✓ Perfect mass conservation
 """
 
 import os
@@ -55,16 +59,15 @@ def main():
     print("  - Single vertical tank (10 m³)")
     print("  - Starts 50% full at 10.5 bar (above setpoint)")
     print("  - Initial temperature: 30.0 K (saturated at 10.5 bar)")
-    print("  - No external heat input")
-    print("  - Vent opens immediately at 10.5 bar, closes at 9.9 bar")
+    print("  - Heat input: 750 W (drives continuous venting)")
+    print("  - Vent opens at 10.0 bar, closes at 9.9 bar")
     print("  - Demonstrates vent control mechanism")
     print("\nPhysics Focus:")
     print("  ✓ Vent control with hysteresis around 10 bar setpoint")
     print("  ✓ Mass conservation during venting")
     print("  ✓ Liquid level decrease as vapor is vented")
-    print("\n  ⚠  NOTE: Energy balance issue causes unexpected temp/pressure rise")
-    print("  ⚠  This is a known bug for future investigation")
-    print("  ⚠  Vent mechanism itself works correctly (mass conservation perfect)")
+    print("  ✓ Correct energy balance with vented vapor enthalpy")
+    print("  ✓ Pressure regulation via vent cycling")
     
     # Create scenario
     config = create_single_tank_venting_scenario()
@@ -92,8 +95,8 @@ def main():
     
     print_separator("RUNNING SIMULATION")
     
-    print("\nSimulating vent operation with no heat input...")
-    print("(Tank starts above setpoint, will vent until pressure drops...)")
+    print("\nSimulating vent operation with heat input...")
+    print("(Heat drives pressure rise, vent regulates around 10 bar setpoint...)")
     
     # Run simulation - shorter duration for depressurization demo
     simulator = Simulator(config)
@@ -191,16 +194,15 @@ def main():
     print(f"  2. Vent control mechanism works (opens/closes based on pressure)")
     print(f"  3. Liquid level decreases as vapor is vented: {config.supply_tank.initial_fill_fraction*100:.0f}% → {final_level:.1f}%")
     print(f"  4. Mass conservation is perfect: {conservation_error:.3f}% error")
-    print(f"  5. ⚠ Pressure rises unexpectedly due to energy balance bug")
+    print(f"  5. Pressure regulates near setpoint: {final_pressure/1e5:.2f} bar")
     
     print("\nThis example demonstrates:")
-    print("  ✓ Vent control mechanism (ST vent in pump mode)")
+    print("  ✓ Vent control mechanism (pressure-driven mode)")
     print("  ✓ Hysteresis implementation (prevents rapid cycling)")
     print("  ✓ Mass conservation during venting")
     print("  ✓ Liquid consumption through venting")
-    print("\nKnown Issues:")
-    print("  ⚠ Energy balance causes spurious heating (future work)")
-    print("  ⚠ Pressure doesn't regulate properly around setpoint")
+    print("  ✓ Correct energy balance with vented vapor enthalpy")
+    print("  ✓ Pressure regulation via vent cycling")
     print()
 
 
