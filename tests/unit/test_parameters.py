@@ -315,7 +315,7 @@ class TestScenarioFactories:
         """Test creating single-tank venting scenario."""
         config = create_single_tank_venting_scenario()
         
-        # Should be pump-driven mode to avoid vaporizer
+        # Should be pump-driven mode (ST vent enabled via control extension)
         assert config.transfer.mode == "pump_driven"
         
         # Main tank should be 50% full
@@ -327,12 +327,12 @@ class TestScenarioFactories:
         # Dummy tank should be very large
         assert config.receiver_tank.volume > config.supply_tank.volume
         
-        # Heat leak should be present
-        assert config.supply_tank.heat_leak_liquid > 0
-        assert config.supply_tank.heat_leak_vapor > 0
-        
-        # Vent threshold should be reasonable for LH2
-        assert 1e5 < config.transfer.ST_vent_open_threshold < 3e5  # 1-3 bar
+        # Vent threshold should be reasonable for LH2 (around 10 bar for this demo)
+        assert 8e5 < config.transfer.ST_vent_open_threshold < 15e5  # 8-15 bar
         
         # Pump flow should be minimal (not used for transfer, just to satisfy validation)
         assert config.transfer.pump_flow_rate < 0.001
+        
+        # Should have ST vent parameters set
+        assert config.transfer.ST_vent_open_threshold > 0
+        assert config.transfer.ST_vent_close_threshold > 0

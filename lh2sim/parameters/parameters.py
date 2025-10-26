@@ -442,14 +442,14 @@ def create_single_tank_venting_scenario() -> ScenarioConfig:
         volume=10.0,  # m³ (medium-sized tank)
         radius=1.0,  # m
         length_or_height=10.0 / (np.pi * 1.0**2),  # H = V/A ≈ 3.18 m
-        initial_pressure=10.0 * bar_to_pa,  # At setpoint
-        initial_liquid_temp=29.5,  # K (saturated at 10 bar)
+        initial_pressure=10.5 * bar_to_pa,  # Above setpoint - will vent immediately
+        initial_liquid_temp=30.0,  # K (saturated at 10.5 bar)
         initial_vapor_temp=29.5,  # K (saturated equilibrium)
         initial_fill_fraction=0.5,  # 50% full as specified
         max_working_pressure=15.0 * bar_to_pa,  # Safety limit
         vent_area=0.002,  # m² (moderate vent size for good regulation)
-        heat_leak_liquid=50.0,  # W (small heat input to liquid)
-        heat_leak_vapor=10.0,  # W (some heat to vapor space)
+        heat_leak_liquid=0.0,  # W (no heat input for this demo)
+        heat_leak_vapor=0.0,  # W
     )
     
     # Dummy receiver tank (not used, but required by ScenarioConfig structure)
