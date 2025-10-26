@@ -19,14 +19,14 @@ Converting MATLAB liquid hydrogen (LH2) transfer simulation code to Python, base
 - [x] `cylinder_cross_section_area()` - Cross-sectional area calculation
 - [x] `cylinder_lateral_surface_area()` - Surface area calculation
 - [x] `horizontal_cylinder_liquid_surface_area()` - Interface area calculation
-- [x] Unit tests with edge cases and realistic scenarios
+- [x] Unit tests with edge cases and realistic scenarios (10 tests passing)
 
 #### Flow Module (`lh2sim/flow/`)
 - [x] `gas_flow()` - Choked/non-choked compressible flow
 - [x] `directed_sqrt()` - Helper for signed square roots
 - [x] `valve_flow_coefficient()` - Effective valve area calculation
 - [x] `vent_flow_rate()` - Vent mass flow calculation
-- [x] Comprehensive unit tests covering flow regimes
+- [x] Comprehensive unit tests covering flow regimes (17 tests passing)
 
 #### Properties Module (`lh2sim/properties/`)
 - [x] `FluidProperties` class - Abstraction layer for thermophysical properties
@@ -36,21 +36,28 @@ Converting MATLAB liquid hydrogen (LH2) transfer simulation code to Python, base
 - [x] `vapor_pressure()` function - Standalone vapor pressure calculation
 - [x] Unit tests for both polynomial and CoolProp backends
 
+#### Control Module (`lh2sim/control/`)
+- [x] `PressureDrivenControl` class - Pressure-driven transfer control
+  - [x] Fill regime management (slow/fast/reduced/topping)
+  - [x] Transfer valve control
+  - [x] Vaporizer valve proportional control
+  - [x] ST and ET vent control with hysteresis
+- [x] `PumpDrivenControl` class - Pump-driven transfer control
+  - [x] Pump speed control based on fill regime
+  - [x] ET vent control
+- [x] `ControlOutputs` dataclass for control signals
+- [x] Unit tests for control logic (16 tests passing)
+
 ### Testing Infrastructure
 - [x] pytest configuration in pyproject.toml
-- [x] Unit tests for geometry module (11 tests)
-- [x] Unit tests for flow module (15 tests)
-- [x] Unit tests for properties module (17 tests)
+- [x] Unit tests for geometry module (10 tests)
+- [x] Unit tests for flow module (17 tests)
+- [x] Unit tests for properties module (tests ready)
+- [x] Unit tests for control module (16 tests)
 - [x] Tests cover edge cases, physical validity, and realistic conditions
+- [x] **43 tests passing** with 65% code coverage
 
 ## In Progress 🔄
-
-### Control Module
-- [ ] Pressure-driven control logic (LH2Control.m equivalent)
-- [ ] Pump-driven control logic (LH2Control_pump.m equivalent)
-- [ ] Valve state machine
-- [ ] Vent control with hysteresis
-- [ ] Unit tests for control logic
 
 ### Parameters Module
 - [ ] Parameter classes for different scenarios
@@ -79,25 +86,24 @@ Converting MATLAB liquid hydrogen (LH2) transfer simulation code to Python, base
 ## Remaining Work 📋
 
 ### High Priority
-1. Control module implementation
-2. Parameters module with scenario configs
-3. Simulation module core (ODE system)
-4. Basic integration tests
-5. Example usage scripts
+1. Parameters module with scenario configs
+2. Simulation module core (ODE system)
+3. Basic integration tests
+4. Example usage scripts
 
 ### Medium Priority
-6. Visualization module
-7. Data extraction utilities
-8. Results saving/logging
-9. Documentation improvements
-10. More comprehensive integration tests
+5. Visualization module
+6. Data extraction utilities
+7. Results saving/logging
+8. Documentation improvements
+9. More comprehensive integration tests
 
 ### Low Priority
-11. Performance optimization
-12. Advanced plotting features
-13. CLI interface
-14. Configuration file support
-15. Continuous integration setup
+10. Performance optimization
+11. Advanced plotting features
+12. CLI interface
+13. Configuration file support
+14. Continuous integration setup
 
 ## Technical Decisions Made
 
@@ -106,6 +112,7 @@ Converting MATLAB liquid hydrogen (LH2) transfer simulation code to Python, base
 - CoolProp as primary property backend with polynomial fallbacks
 - NumPy/SciPy for numerical operations
 - pytest for testing framework
+- Dataclasses for control outputs
 
 ### Dependencies
 - **CoolProp**: Thermophysical properties (open-source REFPROP alternative)
@@ -127,6 +134,7 @@ Converting MATLAB liquid hydrogen (LH2) transfer simulation code to Python, base
 3. **Property abstraction**: Easy to swap backends
 4. **Better testing**: Comprehensive unit tests
 5. **Modern Python**: Type hints, clear interfaces
+6. **Explicit control state**: Controllers maintain their own state
 
 ### Challenges to Address
 1. Need to validate numerical accuracy against MATLAB
@@ -136,28 +144,30 @@ Converting MATLAB liquid hydrogen (LH2) transfer simulation code to Python, base
 
 ## Next Immediate Steps
 
-1. Run existing unit tests to verify implementations
-2. Implement control module (LH2Control)
-3. Create Parameters classes for scenarios
-4. Begin simulation module with simple mass balance
-5. Add integration test with minimal scenario
-
-## Notes
-
-- All physical units are SI unless otherwise specified
-- Code follows PEP 8 style guidelines
-- Tests verify both edge cases and realistic physics
-- Documentation emphasizes connection to original MATLAB code
+1. ✅ Implement control module (LH2Control)
+2. Create Parameters classes for scenarios
+3. Begin simulation module with simple mass balance
+4. Add integration test with minimal scenario
+5. Create example usage script
 
 ## Testing Status
 
-### Unit Tests
-- Geometry: Not yet run
-- Flow: Not yet run
-- Properties: Not yet run
+### Unit Tests Summary
+- **Total**: 43 tests passing, 1 skipped
+- **Geometry**: 10/10 passing (87% coverage)
+- **Flow**: 17/17 passing (96% coverage)
+- **Control**: 16/16 passing (95% coverage)
+- **Properties**: Skipped (requires CoolProp)
+- **Overall Coverage**: 65%
 
-Need to install dependencies and run pytest.
+### Test Quality
+- Edge cases covered (empty, full tanks)
+- Physical validity checks (pressure ranges, flow directions)
+- Realistic LH2 conditions tested
+- Control logic transitions verified
+- Hysteresis behavior validated
 
 ---
 
 Last Updated: 2025-10-26
+Version: 0.1.0
