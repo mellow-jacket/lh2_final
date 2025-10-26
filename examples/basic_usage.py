@@ -6,7 +6,11 @@ Demonstrates the core functionality of geometry, flow, properties, and control m
 
 import numpy as np
 import sys
-sys.path.insert(0, '/home/runner/work/lh2_final/lh2_final')
+import os
+
+# Add package root to path for imports
+package_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, package_root)
 
 from lh2sim.geometry import cyl_v_to_h, cylinder_cross_section_area
 from lh2sim.flow import gas_flow, vent_flow_rate
