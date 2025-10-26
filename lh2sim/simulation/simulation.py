@@ -241,6 +241,9 @@ class Simulator:
                 "p_ET_low": config.receiver_tank.max_working_pressure * 0.9,
                 "p_ET_high": config.receiver_tank.max_working_pressure * 1.05,
                 "p_ET_final": config.receiver_tank.max_working_pressure * 1.0,
+                # Optional ST vent parameters (from TransferParameters if provided)
+                "p_ST_vent_open": config.transfer.ST_vent_open_threshold,
+                "p_ST_vent_close": config.transfer.ST_vent_close_threshold,
             }
             self.controller = PumpDrivenControl(control_params)
 
@@ -466,6 +469,7 @@ class Simulator:
                 h_L2=h_L_receiver,
                 p_ET=p_receiver,
                 ET_fill_complete=ET_fill_complete,
+                p_ST=p_supply,  # For ST vent control in single-tank scenarios
             )
 
         # ---------------------------

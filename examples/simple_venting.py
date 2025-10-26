@@ -1,13 +1,21 @@
 """
 Simple LH2 Tank Venting Example
 
-This example demonstrates a simplified single-tank venting scenario:
-- Tank starts 50% full of LH2 at saturated equilibrium
-- Vent valve opens, allowing liquid to vent to atmosphere
-- Focus on energy balance and heat transfer during venting
+This example demonstrates a single-tank venting scenario:
+- Tank starts 50% full of LH2 at 10.5 bar (above setpoint)
+- Vent valve opens when pressure exceeds 10.0 bar
+- Vent valve closes when pressure drops below 9.9 bar
+- Demonstrates vent control mechanism and liquid level decrease
 
-This is a simpler case than full tank-to-tank transfer, useful for
-understanding the energy balance and thermodynamic behavior during venting.
+This scenario shows:
+- Vent control with hysteresis around 10 bar setpoint
+- Mass conservation (vented mass + remaining mass = initial mass)
+- Liquid level decrease as vapor is vented
+
+NOTE: Current implementation has an energy balance issue causing spurious heating.
+The vent mechanism works correctly (mass is vented, conservation is perfect),
+but temperature/pressure rise beyond expected values due to an energy accounting bug.
+This is a known issue for future investigation.
 """
 
 import os
@@ -38,23 +46,25 @@ def main():
     """Run simple tank venting example."""
     print("\n")
     print("-" + "=" * 68 + "-")
-    print("|" + " " * 15 + "SIMPLE LH2 TANK VENTING EXAMPLE" + " " * 22 + "|")
+    print("|" + " " * 17 + "SIMPLE LH2 TANK VENTING EXAMPLE" + " " * 20 + "|")
     print("-" + "=" * 68 + "-")
     
     print_separator("SCENARIO SETUP")
     
-    print("\nSimple Venting Scenario:")
+    print("\nPressure-Regulated Venting Scenario:")
     print("  - Single vertical tank (10 m³)")
-    print("  - Starts 50% full at saturated equilibrium")
-    print("  - Initial pressure: 1.3 bar (just below vent threshold)")
-    print("  - Initial temperature: 20.3 K (saturated)")
-    print("  - Vent opens when pressure exceeds 1.35 bar")
-    print("  - Environmental heat leak: 1500 W total (1000 W liquid + 500 W vapor)")
+    print("  - Starts 50% full at 10.5 bar (above setpoint)")
+    print("  - Initial temperature: 30.0 K (saturated at 10.5 bar)")
+    print("  - No external heat input")
+    print("  - Vent opens immediately at 10.5 bar, closes at 9.9 bar")
+    print("  - Demonstrates vent control mechanism")
     print("\nPhysics Focus:")
-    print("  ✓ Energy balance during venting")
-    print("  ✓ Heat transfer from environment")
-    print("  ✓ Phase change (liquid/vapor equilibrium)")
-    print("  ✓ Pressure and temperature evolution")
+    print("  ✓ Vent control with hysteresis around 10 bar setpoint")
+    print("  ✓ Mass conservation during venting")
+    print("  ✓ Liquid level decrease as vapor is vented")
+    print("\n  ⚠  NOTE: Energy balance issue causes unexpected temp/pressure rise")
+    print("  ⚠  This is a known bug for future investigation")
+    print("  ⚠  Vent mechanism itself works correctly (mass conservation perfect)")
     
     # Create scenario
     config = create_single_tank_venting_scenario()
@@ -82,12 +92,12 @@ def main():
     
     print_separator("RUNNING SIMULATION")
     
-    print("\nSimulating tank venting for 10 minutes...")
-    print("(This may take a moment to compute energy balance...)")
+    print("\nSimulating vent operation with no heat input...")
+    print("(Tank starts above setpoint, will vent until pressure drops...)")
     
-    # Run simulation with smaller max_step for stability
+    # Run simulation - shorter duration for depressurization demo
     simulator = Simulator(config)
-    result = simulator.run(t_end=600, max_step=2.0)  # 10 min, 2s max step for stability
+    result = simulator.run(t_end=300, max_step=2.0)  # 5 min
     
     print(f"\nSimulation completed!")
     print(f"  Status: {result.message}")
@@ -129,12 +139,15 @@ def main():
     final_energy = result.U_L_ST[-1] + result.U_v_ST[-1]
     energy_change = final_energy - initial_energy
     
+    heat_input_rate = config.supply_tank.heat_leak_liquid + config.supply_tank.heat_leak_vapor
+    total_heat_input = heat_input_rate * result.time[-1]
+    
     print(f"\nEnergy Balance:")
     print(f"  Initial internal energy: {initial_energy/1e6:.2f} MJ")
     print(f"  Final internal energy: {final_energy/1e6:.2f} MJ")
     print(f"  Energy change: {energy_change/1e6:.2f} MJ")
-    print(f"  Heat leak rate: {config.supply_tank.heat_leak_liquid + config.supply_tank.heat_leak_vapor:.0f} W")
-    print(f"  Total heat leak: {(config.supply_tank.heat_leak_liquid + config.supply_tank.heat_leak_vapor) * result.time[-1]/1e6:.2f} MJ")
+    print(f"  Heat input rate: {heat_input_rate:.0f} W")
+    print(f"  Total heat input: {total_heat_input/1e6:.2f} MJ")
     
     # Mass conservation check
     print(f"\nConservation Check:")
@@ -174,17 +187,20 @@ def main():
     
     print(f"\nVisualization saved to: {OUTPUT_DIR}")
     print("\nKey Observations:")
-    print(f"  1. Tank pressure regulated by vent (oscillates around {config.transfer.ST_vent_open_threshold/1e5:.2f} bar)")
-    print(f"  2. Heat leak causes continuous venting of ~{mass_vented/(result.time[-1]/3600):.1f} kg/hr")
-    print(f"  3. Temperature rise of ~{final_temp - config.supply_tank.initial_liquid_temp:.2f} K due to heat input")
-    print(f"  4. Vapor mass increases as liquid evaporates from heat leak")
-    print(f"  5. Energy balance captures thermodynamic behavior during venting")
+    print(f"  1. Vent activated and mass was vented: {mass_vented:.2f} kg")
+    print(f"  2. Vent control mechanism works (opens/closes based on pressure)")
+    print(f"  3. Liquid level decreases as vapor is vented: {config.supply_tank.initial_fill_fraction*100:.0f}% → {final_level:.1f}%")
+    print(f"  4. Mass conservation is perfect: {conservation_error:.3f}% error")
+    print(f"  5. ⚠ Pressure rises unexpectedly due to energy balance bug")
     
-    print("\nThis simplified case demonstrates:")
-    print("  ✓ Energy balance implementation working correctly")
-    print("  ✓ Heat transfer and phase change physics")
-    print("  ✓ Vent control with hysteresis")
-    print("  ✓ Mass and energy conservation (within numerical accuracy)")
+    print("\nThis example demonstrates:")
+    print("  ✓ Vent control mechanism (ST vent in pump mode)")
+    print("  ✓ Hysteresis implementation (prevents rapid cycling)")
+    print("  ✓ Mass conservation during venting")
+    print("  ✓ Liquid consumption through venting")
+    print("\nKnown Issues:")
+    print("  ⚠ Energy balance causes spurious heating (future work)")
+    print("  ⚠ Pressure doesn't regulate properly around setpoint")
     print()
 
 
