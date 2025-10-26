@@ -20,14 +20,19 @@ I list each major area, what's now implemented/partial, and what's still missing
   - Missing/To-verify: explicit REFPROP parity is still absent (REFPROP requires license). The polynomial fallbacks need explicit coefficient verification, and unit tests should be added to validate the polynomials and CoolProp results across the operating envelope.
 
 2) Multi-node mass & energy balances and stratification
-- Status: scaffolded but incomplete
-  - `lh2sim/simulation/simulation.py` contains `Simulator`, `_compute_initial_state`, `_derivatives`, `_enrich_result`, `_create_event_functions`, and `run_with_events` placeholders — the solver integration (solve_ivp) is present.
-  - Missing: the concrete multi-cell liquid/vapor node arrays, energy-balance algebra using internal energy (U), latent heat treatment, inter-node heat transfer, and proper initial-state mapping of MATLAB's `x0` vector.
+- Status: partially implemented
+  - `lh2sim/simulation/simulation.py` contains `Simulator`, `_compute_initial_state`, `_derivatives`, `_enrich_result`, `_create_event_functions`, and `run_with_events` — the solver integration (solve_ivp) is functional.
+  - `lh2sim/simulation/energy_balance.py` provides helper functions for multi-node calculations: grid generation, heat transfer coefficients, latent heat, surface temperature correlations.
+  - Enhanced state includes surface temperatures, vaporizer state, and transfer flow lag (13 state variables total).
+  - Missing: full multi-cell liquid/vapor node arrays for detailed boundary layer resolution. Current implementation uses bulk phase approach with interface dynamics.
 
 3) Energy balances and full thermodynamic state
-- Status: missing/partial
-  - Energy balance equations that rely on node-specific internal energies are not yet implemented. The `simulation` module currently focuses on mass-balance scaffolding.
-  - Implementing internal-energy-based ODE terms and latent heat terms is required for correct thermal dynamics.
+- Status: implemented with simplified approach
+  - Energy balance equations implemented with internal energy (U) tracking for liquid and vapor phases.
+  - Latent heat terms included for phase change (condensation/evaporation).
+  - Surface temperature dynamics using Osipov correlation (Ts = Tc * (P/Pc)^(1/lambda)).
+  - Vaporizer energy contributions included for pressure-driven mode.
+  - Missing: detailed node-to-node heat conduction in boundary layers (requires full multi-node arrays).
 
 4) ODE state-vector layout, event detection & integration parity
 - Status: partial
@@ -35,9 +40,11 @@ I list each major area, what's now implemented/partial, and what's still missing
   - Missing: full event functions (fill complete, vent open/close transitions), mapping the event outcomes to controller flags, and a documented state-index mapping consistent with MATLAB.
 
 5) Control logic (venting, vaporizer, fill regimes, hysteresis)
-- Status: partial/implemented
-  - `PressureDrivenControl` and `PumpDrivenControl` classes exist with internal hysteresis state and helper methods. These offer a clean interface (`compute_control`) to call from the simulator.
-  - Missing: exact setpoints and deadbands from MATLAB `Parameters_*.m` and some internal control decision logic that was in MATLAB (some methods in the Python controller have omitted bodies). Pump-mode specifics (blowdown, plug power) require porting.
+- Status: implemented with vaporizer dynamics
+  - `PressureDrivenControl` and `PumpDrivenControl` classes exist with internal hysteresis state and helper methods.
+  - Vaporizer dynamics implemented: inlet flow, boil-off with time constants, mass accumulation.
+  - Transfer flow lag dynamics included.
+  - Missing: final tuning of vaporizer mass balance signs and calibration of phase change rates.
 
 6) Flow and orifice models: choked flow and sign handling
 - Status: implemented/partial
