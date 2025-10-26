@@ -149,13 +149,11 @@ Key takeaways:
   Mass conservation verified to <0.001% error
   Both pressure-driven and pump-driven modes working
 
-additional copy/paste from cmd
+more from output....
 
-(venv) C:\Projects\h2_twins\the_last>python examples\complete_simulation.py > output.txt  
+(venv) C:\Projects\h2_twins\the_last>python examples\complete_simulation.py > output.txt
 C:\Projects\h2_twins\the_last\venv\Lib\site-packages\scipy\integrate\_ivp\common.py:357: RuntimeWarning: overflow encountered in multiply
   h_new = (y[ind] + new_factor * y_scale[ind]) - y[ind]
-C:\Projects\h2_twins\the_last\lh2sim\visualization\visualization.py:100: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
-  plt.tight_layout()
 
 
 (venv) C:\Projects\h2_twins\the_last>

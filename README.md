@@ -127,3 +127,7 @@ Based on MATLAB codebases from LLNL and paper models. See `llnl_rundown.md` and 
 ## License
 
 See LICENSE file. Original MATLAB code under NASA Open Source Agreement (NOSA) v1.3.
+
+
+# generate phase diagram
+python -m lh2sim.properties.plot_phase_diagram

@@ -11,6 +11,7 @@ Key functionality:
 - Polynomial correlations as fallbacks
 """
 
+import math
 import numpy as np
 from typing import Optional
 
@@ -49,6 +50,14 @@ class FluidProperties:
             print("Warning: CoolProp not available, falling back to polynomial correlations")
             self.backend = "polynomial"
 
+        # Saturation-aware blending / safety margins (best-practice defaults)
+        # These mirror the best-practice belt used in smooth_phase.py
+        self._REL_MARGIN = 2e-4
+        self._ABS_MARGIN = 300.0
+        self._TAU_FB = 500.0
+        self._BELT_REL = 5e-4
+        self._BELT_ABS = 1.5e3
+
     def density(self, T=None, P=None, Q=None, U=None):
         """
         Calculate density.
@@ -70,8 +79,11 @@ class FluidProperties:
             Density [kg/m³]
         """
         if self.backend == "CoolProp":
+            # Use saturation-aware logic: when near saturation, blend saturated
+            # liquid/vapor values smoothly. Otherwise query single-phase at a
+            # safe pressure away from Psat(T).
             if T is not None and P is not None:
-                return CP.PropsSI("D", "T", T, "P", P, self.fluid_name)
+                return self._density_cp_safe(T, P)
             elif T is not None and Q is not None:
                 return CP.PropsSI("D", "T", T, "Q", Q, self.fluid_name)
             elif U is not None and T is not None:
@@ -173,7 +185,7 @@ class FluidProperties:
         """
         if self.backend == "CoolProp":
             if T is not None and P is not None:
-                return CP.PropsSI("H", "T", T, "P", P, self.fluid_name)
+                return self._blend_or_safe_prop("H", T, P)
             elif T is not None and Q is not None:
                 return CP.PropsSI("H", "T", T, "Q", Q, self.fluid_name)
             else:
@@ -201,7 +213,7 @@ class FluidProperties:
         """
         if self.backend == "CoolProp":
             if P is not None:
-                return CP.PropsSI("V", "T", T, "P", P, self.fluid_name)
+                return self._blend_or_safe_prop("V", T, P)
             elif D is not None:
                 return CP.PropsSI("V", "T", T, "D", D, self.fluid_name)
             else:
@@ -230,7 +242,7 @@ class FluidProperties:
         """
         if self.backend == "CoolProp":
             if P is not None:
-                return CP.PropsSI("L", "T", T, "P", P, self.fluid_name)
+                return self._blend_or_safe_prop("L", T, P)
             elif D is not None:
                 return CP.PropsSI("L", "T", T, "D", D, self.fluid_name)
             else:
@@ -257,7 +269,7 @@ class FluidProperties:
         """
         if self.backend == "CoolProp":
             if P is not None:
-                return CP.PropsSI("C", "T", T, "P", P, self.fluid_name)
+                return self._blend_or_safe_prop("C", T, P)
             else:
                 raise ValueError("Pressure required")
         else:
@@ -281,6 +293,89 @@ class FluidProperties:
         else:
             # Linear approximation between 20K (71 kg/m³) and 30K (40 kg/m³)
             return 71.0 - (71.0 - 40.0) * (T - 20.0) / 10.0
+
+    # -----------------------------
+    # Saturation-aware helpers (CoolProp backend)
+    # -----------------------------
+    def _psat_T(self, T: float) -> float:
+        """Return Psat(T) [Pa] or NaN if unavailable."""
+        try:
+            return CP.PropsSI("P", "T", T, "Q", 0, self.fluid_name)
+        except Exception:
+            return float("nan")
+
+    def _softpos(self, x: float, delta: float) -> float:
+        return 0.5 * (x + math.sqrt(x * x + delta * delta))
+
+    def _in_belt(self, T: float, p: float) -> bool:
+        Ps = self._psat_T(T)
+        if not math.isfinite(Ps):
+            return False
+        belt = max(self._BELT_ABS, self._BELT_REL * max(p, 1.0))
+        return abs(p - Ps) <= belt
+
+    def _safe_pressure_away_from_saturation(self, T: float, p: float, phase: str) -> float:
+        Ps = self._psat_T(T)
+        target_gap = max(self._ABS_MARGIN, self._REL_MARGIN * max(p, 1.0))
+        phase_l = phase.lower()
+        if math.isfinite(Ps):
+            if "liq" in phase_l:
+                p_adj = max(p, Ps + target_gap)
+            else:
+                p_adj = min(p, Ps - target_gap)
+            if abs(p_adj - Ps) < target_gap:
+                p_adj = Ps + target_gap if "liq" in phase_l else Ps - target_gap
+            return max(p_adj, 1.0)
+        else:
+            return max(p + self._ABS_MARGIN, 1.0) if "liq" in phase_l else max(p - self._ABS_MARGIN, 1.0)
+
+    def _blend_or_safe_prop(self, prop_code: str, T: float, P: float):
+        """Return a property either blended across saturation (when in belt)
+        or computed from a safe single-phase query.
+
+        prop_code: CoolProp output key (e.g., 'D','H','C','V','L')
+        """
+        # If Psat unknown, fall back to direct single-phase call
+        Ps = self._psat_T(T)
+        if not math.isfinite(Ps):
+            # Use a safe single-phase guess: query as vapor or liquid via PhaseSI
+            try:
+                phase = CP.PhaseSI("T", T, "P", P, self.fluid_name)
+                if "liquid" in phase.lower():
+                    p_try = self._safe_pressure_away_from_saturation(T, P, "liquid")
+                else:
+                    p_try = self._safe_pressure_away_from_saturation(T, P, "vapor")
+            except Exception:
+                p_try = max(P, 1.0)
+            return CP.PropsSI(prop_code, "T", T, "P", p_try, self.fluid_name)
+
+        # If inside belt: blend saturated-liquid and saturated-vapor property values
+        if self._in_belt(T, P):
+            y = self._softpos(P - Ps, self._TAU_FB)
+            z = self._softpos(Ps - P, self._TAU_FB)
+            denom = y + z + 1e-16
+            w_v = z / denom
+            w_l = 1.0 - w_v
+            try:
+                vL = CP.PropsSI(prop_code, "T", T, "Q", 0, self.fluid_name)
+            except Exception:
+                vL = float("nan")
+            try:
+                vV = CP.PropsSI(prop_code, "T", T, "Q", 1, self.fluid_name)
+            except Exception:
+                vV = float("nan")
+            # If either saturated value is not available, fall back to safe single-phase
+            if not (math.isfinite(vL) and math.isfinite(vV)):
+                # pick side by P vs Ps
+                phase = "liquid" if P > Ps else "vapor"
+                p_try = self._safe_pressure_away_from_saturation(T, P, phase)
+                return CP.PropsSI(prop_code, "T", T, "P", p_try, self.fluid_name)
+            return w_l * vL + w_v * vV
+
+        # Outside belt: query single-phase safely on the appropriate side
+        phase = "liquid" if P > Ps else "vapor"
+        p_try = self._safe_pressure_away_from_saturation(T, P, phase)
+        return CP.PropsSI(prop_code, "T", T, "P", p_try, self.fluid_name)
 
     def _vapor_pressure_polynomial(self, T):
         """
