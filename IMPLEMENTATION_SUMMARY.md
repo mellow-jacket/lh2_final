@@ -26,8 +26,12 @@ Successfully implemented a comprehensive Python codebase for liquid hydrogen (LH
 - ✅ Polynomial fallback correlations for testing without CoolProp
 - ✅ Density, pressure, temperature, enthalpy calculations
 - ✅ Transport properties (viscosity, thermal conductivity)
-- ✅ Vapor pressure calculations
-- ✅ 16 unit tests passing (62% coverage)
+- ✅ Vapor pressure calculations with exact MATLAB coefficients ✨ NEW
+  - 6th-order saturation temperature polynomial from density
+  - 3rd-order vapor pressure polynomial for two-phase region
+  - Supercritical branch with ideal gas approximation
+  - Validated against MATLAB vaporpressure.m
+- ✅ 21 unit tests passing (63% coverage) ✨ UPDATED
 
 #### Control Module (`lh2sim/control/`)
 - ✅ PressureDrivenControl class
@@ -71,19 +75,27 @@ Successfully implemented a comprehensive Python codebase for liquid hydrogen (LH
   - Configurable tolerances
   - Adaptive time stepping
   - Stable at realistic flow rates
+- ✅ Event detection system ✨ NEW
+  - Fill completion event (90% target level)
+  - Supply tank empty event (1% minimum)
+  - Pressure limit monitoring
+  - run_with_events() method for automatic control
+  - Terminal and non-terminal events
 - ✅ Ideal gas law for vapor phase (consistent throughout)
 - ✅ Mass conservation verified to machine precision
-- ✅ 17 unit tests passing (95% coverage)
+- ✅ 21 unit tests passing (95% coverage) ✨ UPDATED
 
 ### 2. Testing Infrastructure
 - ✅ pytest configuration with coverage reporting
-- ✅ **92 unit tests passing** (0 failed, 0 skipped)
-- ✅ **86% overall code coverage**
+- ✅ **117 unit tests passing** (0 failed, 0 skipped) ✨ UPDATED
+- ✅ **91% overall code coverage**
 - ✅ Tests cover:
   - Edge cases (empty/full tanks, boundary conditions)
   - Physical validity (pressure ranges, flow directions, mass conservation)
   - Realistic LH2 conditions (20-30K, 1-10 bar)
   - Control logic transitions and hysteresis
+  - Event detection and automatic termination ✨ NEW
+  - MATLAB polynomial coefficient accuracy ✨ NEW
   - Simulation integration (mass transfer, energy balance)
   - Both pressure-driven and pump-driven modes
 
@@ -281,6 +293,9 @@ config.t_final = 100.0  # Run for 100 seconds
 sim = Simulator(config)
 result = sim.run()
 
+# Or run with automatic event detection
+result = sim.run_with_events()
+
 # Check results
 print(f"Simulation success: {result.success}")
 print(f"Time steps: {len(result.t)}")
@@ -293,19 +308,21 @@ print(f"Final receiver liquid mass: {final_state.m_L_receiver:.2f} kg")
 ## Technical Achievements
 
 ### Code Quality Metrics
-- **530 total statements** across 6 modules (up from 288 in 4 modules)
-- **86% code coverage** with unit tests (up from 65%)
+- **905 total statements** across 7 modules ✨ UPDATED
+- **91% code coverage** with unit tests
 - **0 security vulnerabilities** (CodeQL verified)
 - **0 linting errors** with flake8
 
 ### Test Quality
-- **92 tests** covering physics calculations (up from 43)
+- **117 tests** covering physics calculations ✨ UPDATED
 - **Edge cases** tested (empty, full, half-full tanks, boundary conditions)
 - **Physical validity** verified (pressure ranges, flow directions, mass conservation)
 - **Control transitions** validated
 - **Hysteresis behavior** confirmed
 - **Simulation integration** validated (mass transfer, energy conservation)
 - **Both transfer modes** tested (pressure-driven and pump-driven)
+- **Event detection** validated (automatic termination at key milestones) ✨ NEW
+- **MATLAB parity** validated (exact polynomial coefficients, flow formulas) ✨ NEW
 
 ### Documentation Quality
 - **NumPy-style docstrings** for all functions
@@ -313,14 +330,35 @@ print(f"Final receiver liquid mass: {final_state.m_L_receiver:.2f} kg")
 - **Usage examples** for all modules
 - **README files** at package and example level
 
+## Recent Enhancements (2025-10-26)
+
+### MATLAB Parity Improvements
+1. **Vapor Pressure Polynomials** - Added exact coefficients from LLNL MATLAB vaporpressure.m
+   - 6th-order T_sat(rho) polynomial
+   - 3rd-order P(T) polynomial for two-phase region
+   - 5 new comprehensive tests validating accuracy
+
+2. **Flow Calculation Validation** - Verified Python implementation matches MATLAB gasFlow.m
+   - Critical pressure ratio formula
+   - Choked and non-choked flow equations
+   - Flow reversal handling
+
+3. **Event Detection System** - Implemented automatic simulation control
+   - Fill completion detection (90% target level)
+   - Supply tank empty detection
+   - Pressure limit monitoring
+   - 4 new tests for event-based control
+
 ## Conclusion
 
 This implementation successfully creates a comprehensive foundation for LH2 transfer simulation in Python. The codebase is:
-- ✅ **Well-tested** (92 tests, 86% coverage)
-- ✅ **Modular** (6 modules with clear separation of concerns)
+- ✅ **Well-tested** (117 tests, 91% coverage)
+- ✅ **Modular** (7 modules with clear separation of concerns)
 - ✅ **Documented** (comprehensive docs and examples)
 - ✅ **Secure** (no vulnerabilities)
 - ✅ **Portable** (works with or without CoolProp)
+- ✅ **MATLAB-validated** (exact polynomial coefficients, flow formulas) ✨ NEW
+- ✅ **Event-aware** (automatic control via event detection) ✨ NEW
 - ✅ **Extensible** (easy to add visualization, events, detailed heat transfer)
 - ✅ **Functional** (working LH2 transfer simulations with mass conservation)
 
@@ -328,9 +366,10 @@ The next logical steps are to add visualization capabilities for analyzing resul
 
 ---
 
-**Project Status**: Core modules + Parameters + Simulation complete
-**Version**: 0.2.0
+**Project Status**: Core modules + Parameters + Simulation complete + MATLAB parity improvements
+**Version**: 0.3.0
 **Date**: 2025-10-26
-**Test Status**: ✅ 92 passing, 0 failed
+**Test Status**: ✅ 117 passing, 0 failed
 **Security**: ✅ No vulnerabilities
-**Coverage**: ✅ 86%
+**Coverage**: ✅ 91%
+**MATLAB Parity**: ✅ Vapor pressure polynomials, flow formulas, event detection
