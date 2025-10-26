@@ -446,8 +446,8 @@ def create_single_tank_venting_scenario() -> ScenarioConfig:
         initial_fill_fraction=0.5,  # 50% full as specified
         max_working_pressure=5.0 * bar_to_pa,  # Conservative limit
         vent_area=0.001,  # m² (moderate vent size)
-        heat_leak_liquid=80.0,  # W (environmental heat leak)
-        heat_leak_vapor=40.0,  # W
+        heat_leak_liquid=1000.0,  # W (higher heat leak for visible effect in short time)
+        heat_leak_vapor=500.0,  # W
     )
     
     # Dummy receiver tank (not used, but required by ScenarioConfig structure)
@@ -471,18 +471,22 @@ def create_single_tank_venting_scenario() -> ScenarioConfig:
     # Physics parameters (default para-hydrogen)
     physics = PhysicsParameters()
     
-    # Transfer parameters - minimal values since we're focusing on venting
-    # Set up as pressure-driven but with minimal transfer (main interest is venting)
+    # Transfer parameters - use pump mode with minimal flow to avoid vaporizer dynamics
+    # In pump mode, there's no vaporizer adding vapor to the supply tank
+    rho_liquid = physics.rho_liquid
     transfer = TransferParameters(
-        mode="pressure_driven",
-        transfer_valve_area=0.000001,  # Very small (minimal transfer to dummy)
-        vaporizer_area=0.000001,  # Very small
+        mode="pump_driven",  # Use pump mode to avoid vaporizer
+        transfer_valve_area=0.0001,  # Not used in pump mode
+        pump_flow_rate=1e-6,  # Minimal transfer - focus on venting
+        pump_flow_slow=rho_liquid * 1e-6,  # Minimal
+        pump_flow_fast=rho_liquid * 1e-6,  # Minimal
+        pump_flow_topping=rho_liquid * 1e-6,  # Minimal
         pipe_length=1.0,
         pipe_diameter=0.01,
-        # Adjust thresholds so vent is active
-        ET_vent_open_threshold=8.0 * bar_to_pa,  # Very high threshold (won't open)
+        # Adjust thresholds so vent is active on supply tank
+        ET_vent_open_threshold=8.0 * bar_to_pa,  # Very high (dummy tank won't vent)
         ET_vent_close_threshold=7.5 * bar_to_pa,
-        ST_vent_open_threshold=1.35 * bar_to_pa,  # Will open when pressure rises slightly
+        ST_vent_open_threshold=1.35 * bar_to_pa,  # Will open when pressure rises
         ST_vent_close_threshold=1.25 * bar_to_pa,
     )
     
@@ -493,7 +497,7 @@ def create_single_tank_venting_scenario() -> ScenarioConfig:
         receiver_tank=dummy_tank,
         physics=physics,
         transfer=transfer,
-        t_final=1800.0,  # 30 minutes
+        t_final=600.0,  # 10 minutes (reduced for stability)
         property_backend="CoolProp",
     )
 

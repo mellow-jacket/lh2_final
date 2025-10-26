@@ -82,12 +82,12 @@ def main():
     
     print_separator("RUNNING SIMULATION")
     
-    print("\nSimulating tank venting for 30 minutes...")
+    print("\nSimulating tank venting for 10 minutes...")
     print("(This may take a moment to compute energy balance...)")
     
     # Run simulation with smaller max_step for stability
     simulator = Simulator(config)
-    result = simulator.run(t_end=1800, max_step=2.0)  # 30 min, 2s max step for stability
+    result = simulator.run(t_end=600, max_step=2.0)  # 10 min, 2s max step for stability
     
     print(f"\nSimulation completed!")
     print(f"  Status: {result.message}")
