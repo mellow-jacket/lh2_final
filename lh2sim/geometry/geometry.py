@@ -189,3 +189,33 @@ def horizontal_cylinder_liquid_surface_area(V, R, L):
     chord_length = 2.0 * np.sqrt(R**2 - y**2)
 
     return chord_length * L
+
+
+def horizontal_cylinder_interface_area(V: float, R: float, L: float) -> float:
+    """
+    Compute interface area (liquid surface area) in a horizontal cylinder.
+    
+    For a horizontal cylinder partially filled with liquid, the interface
+    is a rectangle with width equal to the chord length at the liquid level
+    and length equal to the cylinder length.
+    
+    Args:
+        V: Liquid volume [m³]
+        R: Cylinder radius [m]
+        L: Cylinder length [m]
+    
+    Returns:
+        Interface area [m²]
+    """
+    # Get liquid height
+    h = cyl_v_to_h(V, R, L)
+    
+    # Chord length (width of interface) at height h
+    # For a circle, chord length = 2 * sqrt(R^2 - (R-h)^2)
+    if h <= 0 or h >= 2*R:
+        return 0.0
+    
+    width = 2 * np.sqrt(R**2 - (R - h)**2)
+    
+    # Interface area = width × length
+    return width * L

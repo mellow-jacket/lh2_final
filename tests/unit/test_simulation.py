@@ -9,6 +9,9 @@ import numpy as np
 from lh2sim.simulation import SimulationState, SimulationResult, Simulator
 from lh2sim.parameters import create_trailer_to_dewar_scenario, create_pump_driven_scenario
 
+# Constant for state vector size (makes updates easier)
+NUM_STATE_VARIABLES = 14  # Updated from 13 to include Tw_receiver
+
 
 class TestSimulationState:
     """Test SimulationState data structure."""
@@ -26,6 +29,7 @@ class TestSimulationState:
             U_v_receiver=5e4,
             Ts_supply=20.0,
             Ts_receiver=20.0,
+            Tw_receiver=300.0,
             m_vaporizer=0.0,
             J_boil=0.0,
             J_transfer=0.0,
@@ -33,6 +37,7 @@ class TestSimulationState:
         assert state.m_L_supply == 1000.0
         assert state.m_v_receiver == 5.0
         assert state.Ts_supply == 20.0
+        assert state.Tw_receiver == 300.0
         assert state.m_vaporizer == 0.0
     
     def test_to_array_conversion(self):
@@ -48,25 +53,28 @@ class TestSimulationState:
             U_v_receiver=5e4,
             Ts_supply=20.0,
             Ts_receiver=20.0,
+            Tw_receiver=300.0,
             m_vaporizer=0.0,
             J_boil=0.0,
             J_transfer=0.0,
         )
         arr = state.to_array()
         assert isinstance(arr, np.ndarray)
-        assert len(arr) == 13  # Updated to 13 state variables
+        assert len(arr) == NUM_STATE_VARIABLES
         assert arr[0] == 1000.0
         assert arr[7] == 5e4
         assert arr[8] == 20.0  # Ts_supply
-        assert arr[12] == 0.0  # J_transfer
+        assert arr[10] == 300.0  # Tw_receiver
+        assert arr[13] == 0.0  # J_transfer
     
     def test_from_array_conversion(self):
         """Test creating state from array."""
-        arr = np.array([1000.0, 10.0, 100.0, 5.0, 1e7, 1e5, 1e6, 5e4, 20.0, 20.0, 0.0, 0.0, 0.0])
+        arr = np.array([1000.0, 10.0, 100.0, 5.0, 1e7, 1e5, 1e6, 5e4, 20.0, 20.0, 300.0, 0.0, 0.0, 0.0])
         state = SimulationState.from_array(arr)
         assert state.m_L_supply == 1000.0
         assert state.U_v_receiver == 5e4
         assert state.Ts_supply == 20.0
+        assert state.Tw_receiver == 300.0
         assert state.J_transfer == 0.0
     
     def test_roundtrip_conversion(self):
@@ -82,6 +90,7 @@ class TestSimulationState:
             U_v_receiver=5e4,
             Ts_supply=20.0,
             Ts_receiver=20.0,
+            Tw_receiver=300.0,
             m_vaporizer=0.0,
             J_boil=0.0,
             J_transfer=0.0,
@@ -91,6 +100,7 @@ class TestSimulationState:
         assert reconstructed.m_L_supply == original.m_L_supply
         assert reconstructed.U_v_receiver == original.U_v_receiver
         assert reconstructed.Ts_supply == original.Ts_supply
+        assert reconstructed.Tw_receiver == original.Tw_receiver
         assert reconstructed.J_transfer == original.J_transfer
         arr = original.to_array()
         restored = SimulationState.from_array(arr)
@@ -107,7 +117,7 @@ class TestSimulationResult:
     def test_result_creation(self):
         """Test creating a simulation result."""
         t = np.linspace(0, 100, 11)
-        states = np.random.rand(13, 11)  # Updated to 13 state variables
+        states = np.random.rand(NUM_STATE_VARIABLES, 11)
         
         result = SimulationResult(
             t=t,
@@ -120,12 +130,12 @@ class TestSimulationResult:
         
         assert result.success
         assert len(result.t) == 11
-        assert result.states.shape == (13, 11)  # Updated to 13 state variables
+        assert result.states.shape == (NUM_STATE_VARIABLES, 11)
     
     def test_get_state_at_index(self):
         """Test extracting state at specific time index."""
         t = np.linspace(0, 100, 11)
-        states = np.random.rand(13, 11)  # Updated to 13 state variables
+        states = np.random.rand(NUM_STATE_VARIABLES, 11)
         
         result = SimulationResult(
             t=t,
@@ -200,7 +210,7 @@ class TestSimulator:
         dydt = sim._derivatives(0.0, y0)
         
         assert dydt.shape == y0.shape
-        assert len(dydt) == 13  # Updated to 13 state variables
+        assert len(dydt) == NUM_STATE_VARIABLES
     
     def test_derivatives_mass_conservation(self):
         """Test that mass is conserved in derivatives."""
@@ -230,7 +240,7 @@ class TestSimulator:
         
         assert result.success
         assert len(result.t) > 0
-        assert result.states.shape[0] == 13  # Updated to 13 state variables
+        assert result.states.shape[0] == NUM_STATE_VARIABLES
         assert result.t[0] == 0.0
         assert result.t[-1] <= config.t_final
     
