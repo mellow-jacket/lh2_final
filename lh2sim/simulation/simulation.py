@@ -22,7 +22,7 @@ from scipy.integrate import solve_ivp
 from lh2sim.parameters import ScenarioConfig
 from lh2sim.properties import FluidProperties
 from lh2sim.geometry import cyl_v_to_h, cylinder_cross_section_area
-from lh2sim.flow import gas_flow
+from lh2sim.flow import gas_flow, vent_flow_rate
 from lh2sim.control import PressureDrivenControl, PumpDrivenControl
 
 
@@ -369,19 +369,30 @@ class Simulator:
         V_v_supply = V_supply - V_L_supply
 
         # Approximate temperatures from internal energies
+        # Add robust bounds to prevent overflow (LH2 reasonable range: 13-100K)
+        T_min = 13.0  # Triple point of H2
+        T_max = 100.0  # Well above critical point
+        
         if state.m_L_supply > 1e-6:
             T_L_supply = state.U_L_supply / (state.m_L_supply * self.config.physics.c_liquid)
+            T_L_supply = np.clip(T_L_supply, T_min, T_max)
         else:
             T_L_supply = self.config.supply_tank.initial_liquid_temp
 
         if state.m_v_supply > 1e-6:
             T_v_supply = state.U_v_supply / (state.m_v_supply * self.config.physics.c_v_vapor)
+            T_v_supply = np.clip(T_v_supply, T_min, T_max)
         else:
             T_v_supply = self.config.supply_tank.initial_vapor_temp
 
         # Approximate pressures (simplified - use ideal gas for vapor)
+        # Add robust bounds to prevent overflow (reasonable range: 0.1-100 bar)
+        p_min = 1e4  # 0.1 bar
+        p_max = 1e7  # 100 bar
+        
         if V_v_supply > 1e-6:
             p_supply = state.m_v_supply * self.config.physics.R_vapor * T_v_supply / V_v_supply
+            p_supply = np.clip(p_supply, p_min, p_max)
         else:
             p_supply = self.config.supply_tank.max_working_pressure
 
@@ -392,16 +403,19 @@ class Simulator:
 
         if state.m_L_receiver > 1e-6:
             T_L_receiver = state.U_L_receiver / (state.m_L_receiver * self.config.physics.c_liquid)
+            T_L_receiver = np.clip(T_L_receiver, T_min, T_max)
         else:
             T_L_receiver = self.config.receiver_tank.initial_liquid_temp
 
         if state.m_v_receiver > 1e-6:
             T_v_receiver = state.U_v_receiver / (state.m_v_receiver * self.config.physics.c_v_vapor)
+            T_v_receiver = np.clip(T_v_receiver, T_min, T_max)
         else:
             T_v_receiver = self.config.receiver_tank.initial_vapor_temp
 
         if V_v_receiver > 1e-6:
             p_receiver = state.m_v_receiver * self.config.physics.R_vapor * T_v_receiver / V_v_receiver
+            p_receiver = np.clip(p_receiver, p_min, p_max)
         else:
             p_receiver = self.config.receiver_tank.max_working_pressure
 
@@ -527,12 +541,47 @@ class Simulator:
             J_cd_receiver = 0.0
 
         # ---------------------------
+        # Vent flows (vapor vented to atmosphere)
+        # ---------------------------
+        p_ambient = 101325.0  # Pa (atmospheric pressure)
+        
+        # Supply tank vent flow
+        if controls.ST_vent_state == 1 and p_supply > p_ambient:
+            # Compute vapor density from ideal gas law
+            rho_v_supply = p_supply / (self.config.physics.R_vapor * T_v_supply)
+            J_vent_supply = vent_flow_rate(
+                P_tank=p_supply,
+                P_ambient=p_ambient,
+                rho_vapor=rho_v_supply,
+                A_vent=self.config.supply_tank.vent_area,
+                gamma=self.config.physics.gamma_vapor,
+                C_d=0.6,  # Discharge coefficient
+            )
+        else:
+            J_vent_supply = 0.0
+        
+        # Receiver tank vent flow
+        if controls.ET_vent_state == 1 and p_receiver > p_ambient:
+            # Compute vapor density from ideal gas law
+            rho_v_receiver = p_receiver / (self.config.physics.R_vapor * T_v_receiver)
+            J_vent_receiver = vent_flow_rate(
+                P_tank=p_receiver,
+                P_ambient=p_ambient,
+                rho_vapor=rho_v_receiver,
+                A_vent=self.config.receiver_tank.vent_area,
+                gamma=self.config.physics.gamma_vapor,
+                C_d=0.6,  # Discharge coefficient
+            )
+        else:
+            J_vent_receiver = 0.0
+
+        # ---------------------------
         # Mass balance derivatives
         # ---------------------------
         dm_L_supply_dt = -mdot_transfer - J_vap + J_cd_supply
-        dm_v_supply_dt = state.J_boil + J_vap - J_cd_supply  # Vaporizer adds vapor
+        dm_v_supply_dt = state.J_boil + J_vap - J_cd_supply - J_vent_supply  # Vaporizer adds vapor, vent removes it
         dm_L_receiver_dt = mdot_transfer + J_cd_receiver
-        dm_v_receiver_dt = -J_cd_receiver
+        dm_v_receiver_dt = -J_cd_receiver - J_vent_receiver  # Vent removes vapor
 
         # ---------------------------
         # Energy balance derivatives
