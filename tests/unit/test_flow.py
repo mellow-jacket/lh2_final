@@ -88,6 +88,94 @@ class TestGasFlow:
         assert 0 < mdot < 1.0  # kg/s
 
 
+class TestGasFlowEdgeCases:
+    """Additional edge case tests for gas_flow (DIFFERENCES.md Item #4)."""
+    
+    def test_very_high_pressure_ratio(self):
+        """Test with very high pressure ratio (deep choked)."""
+        CA = 0.01
+        rho = 1.0
+        P1 = 10e5  # 10 bar
+        P2 = 0.1e5  # 0.1 bar (pressure ratio = 0.01)
+        gamma = 1.4
+        
+        mdot = gas_flow(CA, rho, P1, P2, gamma)
+        
+        # Should be choked and positive
+        assert mdot > 0
+        
+        # Further reducing P2 should not change flow significantly (choked)
+        mdot2 = gas_flow(CA, rho, P1, 0.05e5, gamma)
+        assert abs(mdot2 - mdot) / mdot < 0.01  # Less than 1% change
+    
+    def test_near_critical_pressure_ratio(self):
+        """Test near the critical pressure ratio boundary."""
+        CA = 0.01
+        rho = 1.0
+        gamma = 1.4
+        P1 = 2e5
+        
+        # Critical pressure ratio for gamma=1.4 is ~0.528
+        P_crit = P1 * ((2 / (gamma + 1)) ** (gamma / (gamma - 1)))
+        
+        # Test just above critical (non-choked)
+        P2_above = P_crit * 1.01
+        mdot_above = gas_flow(CA, rho, P1, P2_above, gamma)
+        
+        # Test just below critical (choked)
+        P2_below = P_crit * 0.99
+        mdot_below = gas_flow(CA, rho, P1, P2_below, gamma)
+        
+        # Both should give positive flow
+        assert mdot_above > 0
+        assert mdot_below > 0
+        
+        # Choked flow should be greater or equal
+        assert mdot_below >= mdot_above * 0.9  # Allow some tolerance
+    
+    def test_different_gamma_values(self):
+        """Test with different specific heat ratios."""
+        CA = 0.01
+        rho = 1.0
+        P1 = 2e5
+        P2 = 1e5
+        
+        # Test with various gamma values
+        for gamma in [1.2, 1.3, 1.4, 1.5, 1.67]:  # Different gas properties
+            mdot = gas_flow(CA, rho, P1, P2, gamma)
+            assert mdot > 0, f"Failed for gamma={gamma}"
+    
+    def test_very_small_pressure_difference(self):
+        """Test with very small pressure difference (near equilibrium)."""
+        CA = 0.01
+        rho = 1.0
+        P1 = 1.0e5
+        P2 = P1 * 0.9999  # 0.01% difference
+        gamma = 1.4
+        
+        mdot = gas_flow(CA, rho, P1, P2, gamma)
+        
+        # Should be small but positive (flow scales with sqrt of pressure difference)
+        assert 0 < mdot < 0.1  # Much smaller than typical flows
+    
+    def test_backward_flow_choked(self):
+        """Test choked flow in reverse direction."""
+        CA = 0.01
+        rho = 1.0
+        P1 = 1e5
+        P2 = 3e5  # P2 > P1, reverse flow
+        gamma = 1.4
+        
+        mdot = gas_flow(CA, rho, P1, P2, gamma)
+        
+        # Should be negative and choked
+        assert mdot < 0
+        
+        # Increasing P2 further shouldn't change magnitude much (choked)
+        mdot2 = gas_flow(CA, rho, P1, 5e5, gamma)
+        assert abs(mdot2) >= abs(mdot) * 0.95
+
+
 class TestDirectedSqrt:
     """Tests for directed square root function."""
     
