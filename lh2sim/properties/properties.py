@@ -322,27 +322,56 @@ def vapor_pressure(T_film, rho_vapor):
     P : float
         Vapor pressure [Pa]
 
+    Notes
+    -----
+    Uses exact polynomial coefficients from LLNL MATLAB vaporpressure.m.
+    - T_sat(rho_vapor): 6th-order polynomial for saturation temperature
+    - P(T): 3rd-order polynomial for vapor pressure in two-phase region
+    - For supercritical: Would use REFPROP, here we use ideal gas law
+    
     References
     ----------
-    Original MATLAB: LLNL_model/vaporpressure.m
+    Original MATLAB: LLNL_model/vaporpressure.m (lines 7-30)
     """
-    # Saturation temperature from density polynomial
-    # T_sat(rho) polynomial - would need actual coefficients
-    T_sat = 20.0 + 0.1 * rho_vapor  # Simplified
+    # Handle negative or very small densities
+    if rho_vapor < 0:
+        rho_vapor = 0.0001
+    
+    # Saturation temperature from density polynomial (6th order)
+    # Exact coefficients from MATLAB vaporpressure.m lines 7-9
+    T_sat = (-3.9389254667e-09 * (rho_vapor**6) +
+             1.0053641879e-06 * (rho_vapor**5) -
+             1.0304184083e-04 * (rho_vapor**4) +
+             5.3058942923e-03 * (rho_vapor**3) -
+             1.4792439609e-01 * (rho_vapor**2) +
+             2.2234419496 * rho_vapor +
+             1.7950995359e+01)
 
     if T_film > T_sat:
-        # Supercritical branch - use ideal gas approximation
+        # Supercritical branch
+        # MATLAB uses REFPROP here, but we'll use ideal gas as approximation
+        # In production, this should use CoolProp or REFPROP backend
+        # Clip temperature near critical point to avoid numerical issues
+        T_vapor = T_film
+        if T_vapor > 32.937 and T_vapor < 32.938:
+            T_vapor = 32.937
+        
+        # Ideal gas approximation (better than nothing without REFPROP)
         R_specific = 4124.0  # J/kg/K for hydrogen
-        P = rho_vapor * R_specific * T_film
+        P = rho_vapor * R_specific * T_vapor
     else:
         # Two-phase branch - cubic polynomial in temperature
-        # P = a0 + a1*T + a2*T^2 + a3*T^3
-        # Coefficients from MATLAB code (example values)
-        a0 = -1e6
-        a1 = 1e5
-        a2 = 1e3
-        a3 = 10.0
-        P = a0 + a1 * T_film + a2 * T_film**2 + a3 * T_film**3
-        P = max(P, 1e3)  # Ensure positive pressure
+        # Exact coefficients from MATLAB vaporpressure.m line 30
+        # P = a3*T^3 + a2*T^2 + a1*T + a0, returns in Pa (after *1e3)
+        a3 = 1.6133821043e-1
+        a2 = -6.9432088540
+        a1 = 1.1373052580e2
+        a0 = -6.9558797798e2
+        
+        P = (a3 * (T_film**3) + a2 * (T_film**2) + 
+             a1 * T_film + a0) * 1e3  # Convert to Pa
+        
+        # Ensure positive pressure
+        P = max(P, 1e3)
 
     return P

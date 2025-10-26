@@ -69,6 +69,81 @@ class TestVaporPressureFunction:
         P1 = vapor_pressure(T_film, 1.0)
         P2 = vapor_pressure(T_film, 2.0)
         assert P2 > P1
+    
+    def test_matlab_polynomial_coefficients(self):
+        """Test that MATLAB polynomial coefficients produce expected values."""
+        # Test saturation temperature polynomial at known points
+        # These values are derived from MATLAB vaporpressure.m lines 7-9
+        
+        # Low density vapor
+        rho = 1.0
+        T_sat = (-3.9389254667e-09 * (rho**6) +
+                 1.0053641879e-06 * (rho**5) -
+                 1.0304184083e-04 * (rho**4) +
+                 5.3058942923e-03 * (rho**3) -
+                 1.4792439609e-01 * (rho**2) +
+                 2.2234419496 * rho +
+                 1.7950995359e+01)
+        assert 19.5 < T_sat < 20.5  # Expected ~20K for low density
+        
+        # Medium density vapor
+        rho = 10.0
+        T_sat = (-3.9389254667e-09 * (rho**6) +
+                 1.0053641879e-06 * (rho**5) -
+                 1.0304184083e-04 * (rho**4) +
+                 5.3058942923e-03 * (rho**3) -
+                 1.4792439609e-01 * (rho**2) +
+                 2.2234419496 * rho +
+                 1.7950995359e+01)
+        assert 29.0 < T_sat < 30.5  # Expected ~30K
+    
+    def test_two_phase_pressure_polynomial(self):
+        """Test two-phase pressure polynomial from MATLAB."""
+        # Test pressure calculation in two-phase region
+        # Coefficients from MATLAB vaporpressure.m line 30
+        T = 20.0  # K, typical LH2 temperature
+        rho_vapor = 1.0  # kg/m³, low density
+        
+        P = vapor_pressure(T, rho_vapor)
+        
+        # At 20K, LH2 vapor pressure should be ~90-100 kPa
+        assert 8e4 < P < 1.2e5  # 80-120 kPa
+    
+    def test_negative_density_handling(self):
+        """Test that negative densities are handled gracefully."""
+        T = 20.0
+        rho = -1.0  # Invalid negative density
+        
+        P = vapor_pressure(T, rho)
+        # Should return positive pressure (density clamped to 0.0001)
+        assert P > 0
+    
+    def test_supercritical_branch(self):
+        """Test supercritical branch uses ideal gas approximation."""
+        T = 35.0  # Above critical temperature (~33K)
+        rho = 10.0
+        
+        P = vapor_pressure(T, rho)
+        
+        # Should use ideal gas: P = rho * R * T
+        R_specific = 4124.0  # J/kg/K for hydrogen
+        P_ideal = rho * R_specific * T
+        
+        # Should be close to ideal gas (within factor of 2 for approximation)
+        assert 0.5 * P_ideal < P < 2.0 * P_ideal
+    
+    def test_realistic_lh2_conditions(self):
+        """Test vapor pressure at realistic LH2 transfer conditions."""
+        # Typical conditions during LH2 transfer
+        test_cases = [
+            (20.0, 1.0, 5e4, 1.5e5),    # Low pressure, low density
+            (25.0, 5.0, 2.5e5, 4.5e5),  # Medium pressure, medium density
+            (30.0, 15.0, 8e5, 1.2e6),   # Higher pressure, higher density
+        ]
+        
+        for T, rho, P_min, P_max in test_cases:
+            P = vapor_pressure(T, rho)
+            assert P_min < P < P_max, f"T={T}K, rho={rho} kg/m³ => P={P/1e3:.1f} kPa not in range [{P_min/1e3:.1f}, {P_max/1e3:.1f}] kPa"
 
 
 # Skip CoolProp tests if not available
