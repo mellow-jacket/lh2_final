@@ -314,3 +314,270 @@ def compute_density_from_temperature(T: float, fluid: str = "liquid") -> float:
     
     else:
         raise ValueError("Vapor density should be computed from ideal gas law")
+
+
+def compute_interface_heat_flows(
+    T_liquid_bulk: float,
+    T_vapor_bulk: float,
+    Ts: float,
+    dTs_dt: float,
+    rho_liquid: float,
+    rho_vapor: float,
+    kappa_liquid: float,
+    kappa_vapor: float,
+    cp_liquid: float,
+    cp_vapor: float,
+    cv_vapor: float,
+    mu_liquid: float,
+    mu_vapor: float,
+    beta_liquid: float,
+    beta_vapor: float,
+    g: float,
+    interface_area: float,
+    n_liquid_nodes: int,
+    n_vapor_nodes: int,
+    tmin_liquid: float,
+    tmin_vapor: float,
+) -> Tuple[float, float, float, float]:
+    """
+    Compute heat transfer at the liquid-vapor interface.
+    
+    Following MATLAB approach (LH2Simulate.m lines 323-387):
+    - Generates boundary layer grids for liquid and vapor
+    - Computes conduction and convection heat transfer coefficients
+    - Computes heat flows from liquid and vapor to interface
+    - Returns both conduction and convection components
+    
+    Args:
+        T_liquid_bulk: Bulk liquid temperature [K]
+        T_vapor_bulk: Bulk vapor temperature [K]
+        Ts: Interface/surface temperature [K]
+        dTs_dt: Time derivative of surface temperature [K/s]
+        rho_liquid: Liquid density [kg/m³]
+        rho_vapor: Vapor density [kg/m³]
+        kappa_liquid: Liquid thermal conductivity [W/m/K]
+        kappa_vapor: Vapor thermal conductivity [W/m/K]
+        cp_liquid: Liquid specific heat (constant pressure) [J/kg/K]
+        cp_vapor: Vapor specific heat (constant pressure) [J/kg/K]
+        cv_vapor: Vapor specific heat (constant volume) [J/kg/K]
+        mu_liquid: Liquid dynamic viscosity [Pa·s]
+        mu_vapor: Vapor dynamic viscosity [Pa·s]
+        beta_liquid: Liquid thermal expansion coefficient [1/K]
+        beta_vapor: Vapor thermal expansion coefficient [1/K]
+        g: Gravitational acceleration [m/s²]
+        interface_area: Interface area [m²]
+        n_liquid_nodes: Number of liquid boundary layer nodes
+        n_vapor_nodes: Number of vapor boundary layer nodes
+        tmin_liquid: Minimum time scale for liquid [s]
+        tmin_vapor: Minimum time scale for vapor [s]
+    
+    Returns:
+        Tuple of (Q_dot_LS, Q_dot_VS, h_LS, h_VS):
+            Q_dot_LS: Heat flow from liquid to surface [W]
+            Q_dot_VS: Heat flow from vapor to surface [W]
+            h_LS: Liquid-surface heat transfer coefficient [W/m²/K]
+            h_VS: Vapor-surface heat transfer coefficient [W/m²/K]
+    """
+    # Generate boundary layer grids
+    l_liquid, l12_liquid = generate_boundary_layer_grid(
+        n_liquid_nodes, kappa_liquid, tmin_liquid, cp_liquid, rho_liquid
+    )
+    l_vapor, l12_vapor = generate_boundary_layer_grid(
+        n_vapor_nodes, kappa_vapor, tmin_vapor, cp_vapor, rho_vapor
+    )
+    
+    # Liquid-to-surface heat transfer
+    h_LS_cond = kappa_liquid / l12_liquid[0]
+    h_LS_conv = compute_natural_convection_heat_transfer_coefficient(
+        kappa_liquid, g, beta_liquid, cp_liquid, rho_liquid, mu_liquid,
+        abs(T_liquid_bulk - Ts), l_liquid[0]
+    )
+    
+    # Heat flows (conduction and convection)
+    Q_dot_LS_cond = h_LS_cond * interface_area * (T_liquid_bulk - Ts) - l_liquid[0] * cp_liquid * rho_liquid * dTs_dt
+    Q_dot_LS_conv = h_LS_conv * interface_area * (T_liquid_bulk - Ts) * (T_liquid_bulk > Ts)
+    
+    # Choose max for heating, conduction only for cooling
+    if Q_dot_LS_conv > 0:
+        Q_dot_LS = max(Q_dot_LS_conv, Q_dot_LS_cond)
+        h_LS = Q_dot_LS / (interface_area * (T_liquid_bulk - Ts) + 1e-10)
+    else:
+        Q_dot_LS = Q_dot_LS_cond
+        h_LS = h_LS_cond
+    
+    # Vapor-to-surface heat transfer
+    h_VS_cond = kappa_vapor / l12_vapor[0]
+    h_VS_conv = compute_natural_convection_heat_transfer_coefficient(
+        kappa_vapor, g, beta_vapor, cp_vapor, rho_vapor, mu_vapor,
+        abs(Ts - T_vapor_bulk), l_vapor[0]
+    )
+    
+    # Heat flows (conduction and convection)
+    Q_dot_VS_cond = h_VS_cond * interface_area * (T_vapor_bulk - Ts) - l_vapor[0] * cv_vapor * rho_vapor * dTs_dt
+    Q_dot_VS_conv = h_VS_conv * interface_area * (T_vapor_bulk - Ts) * (Ts > T_vapor_bulk)
+    
+    # Choose min for cooling, conduction only for heating
+    if Q_dot_VS_conv < 0:
+        Q_dot_VS = min(Q_dot_VS_conv, Q_dot_VS_cond)
+        h_VS = Q_dot_VS / (interface_area * (T_vapor_bulk - Ts) + 1e-10)
+    else:
+        Q_dot_VS = Q_dot_VS_cond
+        h_VS = h_VS_cond
+    
+    return Q_dot_LS, Q_dot_VS, h_LS, h_VS
+
+
+def compute_wall_heat_transfer(
+    T_wall: float,
+    T_liquid_bulk: float,
+    T_vapor_bulk: float,
+    rho_liquid: float,
+    rho_vapor: float,
+    kappa_liquid: float,
+    kappa_vapor: float,
+    mu_liquid: float,
+    mu_vapor: float,
+    beta_liquid: float,
+    beta_vapor: float,
+    Pr_liquid: float,
+    Pr_vapor: float,
+    g: float,
+    tank_height: float,
+    liquid_height: float,
+    tank_radius: float,
+    tank_cross_section_area: float,
+) -> Tuple[float, float]:
+    """
+    Compute heat transfer between tank wall and fluid phases.
+    
+    Following MATLAB approach (LH2Simulate.m lines 388-434):
+    - Churchill-Chu correlation for natural convection at vertical walls
+    - Simplified correlation for horizontal plates (bottom)
+    - Separate treatment for liquid and vapor regions
+    
+    Args:
+        T_wall: Wall temperature [K]
+        T_liquid_bulk: Bulk liquid temperature [K]
+        T_vapor_bulk: Bulk vapor temperature [K]
+        rho_liquid: Liquid density [kg/m³]
+        rho_vapor: Vapor density [kg/m³]
+        kappa_liquid: Liquid thermal conductivity [W/m/K]
+        kappa_vapor: Vapor thermal conductivity [W/m/K]
+        mu_liquid: Liquid dynamic viscosity [Pa·s]
+        mu_vapor: Vapor dynamic viscosity [Pa·s]
+        beta_liquid: Liquid thermal expansion coefficient [1/K]
+        beta_vapor: Vapor thermal expansion coefficient [1/K]
+        Pr_liquid: Liquid Prandtl number [-]
+        Pr_vapor: Vapor Prandtl number [-]
+        g: Gravitational acceleration [m/s²]
+        tank_height: Total tank height [m]
+        liquid_height: Current liquid height [m]
+        tank_radius: Tank radius [m]
+        tank_cross_section_area: Tank cross-sectional area [m²]
+    
+    Returns:
+        Tuple of (Q_dot_WL, Q_dot_WV):
+            Q_dot_WL: Heat flow from wall to liquid [W]
+            Q_dot_WV: Heat flow from wall to vapor [W]
+    """
+    vapor_height = tank_height - liquid_height
+    
+    # Wall-to-vapor heat transfer
+    nu_vapor = mu_vapor / rho_vapor
+    Nu_vapor = compute_wall_convection_nusselt(
+        g, beta_vapor, T_wall - T_vapor_bulk, vapor_height, nu_vapor, Pr_vapor, "vertical_wall"
+    )
+    h_WV = Nu_vapor * kappa_vapor / max(vapor_height, 0.01)  # Avoid division by zero
+    
+    # Vapor region areas: top + side
+    A_vapor_top = tank_cross_section_area
+    A_vapor_side = 2 * np.pi * tank_radius * vapor_height
+    Q_dot_WV = h_WV * (T_wall - T_vapor_bulk) * (A_vapor_top + A_vapor_side)
+    
+    # Wall-to-liquid heat transfer
+    if liquid_height > 1e-6:
+        nu_liquid = mu_liquid / rho_liquid
+        
+        # Side wall (vertical)
+        Nu_liquid_side = compute_wall_convection_nusselt(
+            g, beta_liquid, T_wall - T_liquid_bulk, liquid_height, nu_liquid, Pr_liquid, "vertical_wall"
+        )
+        h_WL_side = Nu_liquid_side * kappa_liquid / liquid_height
+        A_liquid_side = 2 * np.pi * tank_radius * liquid_height
+        
+        # Bottom (horizontal plate)
+        Nu_liquid_bottom = compute_wall_convection_nusselt(
+            g, beta_liquid, T_wall - T_liquid_bulk, tank_radius / 2, nu_liquid, Pr_liquid, "horizontal_plate"
+        )
+        h_WL_bottom = Nu_liquid_bottom * kappa_liquid / (tank_radius / 2)
+        A_liquid_bottom = tank_cross_section_area
+        
+        Q_dot_WL = (T_wall - T_liquid_bulk) * (h_WL_bottom * A_liquid_bottom + h_WL_side * A_liquid_side)
+    else:
+        Q_dot_WL = 0.0
+    
+    return Q_dot_WL, Q_dot_WV
+
+
+def compute_environmental_heat_leak(
+    liquid_volume: float, correlation_coeffs: Tuple[float, float, float] = None
+) -> float:
+    """
+    Compute environmental heat leak to tank from surroundings.
+    
+    Following MATLAB approach (LH2Simulate.m line 645):
+    Q_dot_EW = a*V_L^2 + b*V_L + c
+    
+    This is a correlation for a specific tank geometry and insulation.
+    Default coefficients are for LLNL 3,300 gallon vertical Dewar.
+    
+    Args:
+        liquid_volume: Liquid volume [m³]
+        correlation_coeffs: Tuple of (a, b, c) for quadratic correlation
+                           Default is for LLNL 3,300 gallon Dewar
+    
+    Returns:
+        Heat leak from environment [W]
+    """
+    if correlation_coeffs is None:
+        # Default LLNL Dewar correlation (LH2Simulate.m line 645)
+        a = -7.462776654302e-02  # W/m⁶
+        b = 4.445867251697e00  # W/m³
+        c = 3.108170556297e01  # W
+    else:
+        a, b, c = correlation_coeffs
+    
+    Q_dot_EW = a * liquid_volume**2 + b * liquid_volume + c
+    return max(Q_dot_EW, 0.0)  # Heat leak is always positive (into tank)
+
+
+def compute_wall_temperature_derivative(
+    T_wall: float,
+    Q_dot_environment: float,
+    Q_dot_to_liquid: float,
+    Q_dot_to_vapor: float,
+    wall_mass: float,
+    wall_specific_heat: float,
+) -> float:
+    """
+    Compute time derivative of wall temperature.
+    
+    Energy balance on wall thermal mass:
+    M_w * c_w * dT_w/dt = Q_dot_env - Q_dot_WL - Q_dot_WV
+    
+    Args:
+        T_wall: Current wall temperature [K]
+        Q_dot_environment: Heat flow from environment to wall [W]
+        Q_dot_to_liquid: Heat flow from wall to liquid [W]
+        Q_dot_to_vapor: Heat flow from wall to vapor [W]
+        wall_mass: Wall thermal mass [kg]
+        wall_specific_heat: Wall specific heat [J/kg/K]
+    
+    Returns:
+        dT_wall/dt [K/s]
+    """
+    if wall_mass < 1e-6 or wall_specific_heat < 1e-6:
+        return 0.0
+    
+    dT_wall_dt = (Q_dot_environment - Q_dot_to_liquid - Q_dot_to_vapor) / (wall_mass * wall_specific_heat)
+    return dT_wall_dt

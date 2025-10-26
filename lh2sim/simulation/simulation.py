@@ -35,18 +35,16 @@ class SimulationState:
     - Each tank has liquid mass and vapor mass
     - Each tank has liquid internal energy and vapor internal energy
     - Interface/surface temperatures for phase equilibrium
+    - Wall temperatures for tanks with wall thermal mass
     - Vaporizer state (mass accumulator and boil-off flow)
     - Transfer flow with time lag
 
     This is an enhanced state supporting:
-    - Basic energy balance with heat leaks
+    - Multi-node energy balance with detailed heat transfer
+    - Wall thermal dynamics
     - Surface temperature dynamics
     - Vaporizer dynamics (for pressure-driven mode)
     - Transfer flow lag
-
-    Future enhancements could include:
-    - Multi-node discretization
-    - Wall thermal mass
 
     Attributes:
         m_L_supply: Liquid mass in supply tank [kg]
@@ -59,6 +57,7 @@ class SimulationState:
         U_v_receiver: Vapor internal energy in receiver tank [J]
         Ts_supply: Interface/surface temperature in supply tank [K]
         Ts_receiver: Interface/surface temperature in receiver tank [K]
+        Tw_receiver: Wall temperature in receiver tank [K] (0 if no wall thermal mass)
         m_vaporizer: Mass in vaporizer (for pressure-driven) [kg]
         J_boil: Boil-off flow from vaporizer [kg/s]
         J_transfer: Transfer flow with lag [kg/s]
@@ -74,6 +73,7 @@ class SimulationState:
     U_v_receiver: float
     Ts_supply: float
     Ts_receiver: float
+    Tw_receiver: float  # Wall temperature (0 if no wall thermal mass)
     m_vaporizer: float
     J_boil: float
     J_transfer: float
@@ -92,6 +92,7 @@ class SimulationState:
                 self.U_v_receiver,
                 self.Ts_supply,
                 self.Ts_receiver,
+                self.Tw_receiver,
                 self.m_vaporizer,
                 self.J_boil,
                 self.J_transfer,
@@ -112,9 +113,10 @@ class SimulationState:
             U_v_receiver=arr[7],
             Ts_supply=arr[8],
             Ts_receiver=arr[9],
-            m_vaporizer=arr[10],
-            J_boil=arr[11],
-            J_transfer=arr[12],
+            Tw_receiver=arr[10],
+            m_vaporizer=arr[11],
+            J_boil=arr[12],
+            J_transfer=arr[13],
         )
 
 
@@ -296,20 +298,33 @@ class Simulator:
         U_v_receiver = m_v_receiver * u_v_receiver
 
         # Initialize surface temperatures using Osipov correlation
+        # But clamp to reasonable range based on liquid/vapor temps to avoid huge initial transients
         from lh2sim.simulation.energy_balance import compute_surface_temperature
 
-        Ts_supply = compute_surface_temperature(
+        Ts_supply_eq = compute_surface_temperature(
             p_supply,
             self.config.physics.T_critical,
             self.config.physics.p_critical,
             self.config.physics.lambda_,
         )
-        Ts_receiver = compute_surface_temperature(
+        # For initialization, use value closer to liquid temp to avoid huge transients
+        Ts_supply = max(Ts_supply_eq, 0.95 * T_L_supply)
+        
+        Ts_receiver_eq = compute_surface_temperature(
             p_receiver,
             self.config.physics.T_critical,
             self.config.physics.p_critical,
             self.config.physics.lambda_,
         )
+        # For initialization, use value closer to liquid temp to avoid huge transients
+        Ts_receiver = max(Ts_receiver_eq, 0.95 * T_L_receiver)
+
+        # Initialize wall temperature (receiver tank only)
+        # If wall_mass > 0, initialize at ambient temperature, otherwise use liquid temperature
+        if self.config.receiver_tank.wall_mass > 0:
+            Tw_receiver = self.config.physics.wall_initial_temperature
+        else:
+            Tw_receiver = T_L_receiver  # No wall thermal mass, assume wall at liquid temp
 
         # Initialize vaporizer state (for pressure-driven mode)
         m_vaporizer = 0.0  # Start empty
@@ -329,6 +344,7 @@ class Simulator:
             U_v_receiver=U_v_receiver,
             Ts_supply=Ts_supply,
             Ts_receiver=Ts_receiver,
+            Tw_receiver=Tw_receiver,
             m_vaporizer=m_vaporizer,
             J_boil=J_boil,
             J_transfer=J_transfer,
@@ -518,27 +534,129 @@ class Simulator:
         dTs_receiver_dt = (Ts_receiver_eq - state.Ts_receiver) / tmin_L
 
         # ---------------------------
-        # Phase change (condensation/evaporation)
+        # Enhanced heat transfer and phase change
         # ---------------------------
-        # Simplified model: heat leak causes evaporation/condensation
-        # Full model would use interface heat transfer calculations
+        from lh2sim.simulation.energy_balance import (
+            compute_interface_heat_flows,
+            compute_wall_heat_transfer,
+            compute_environmental_heat_leak,
+            compute_wall_temperature_derivative,
+        )
         
         # Latent heat at interface temperatures
         qh_supply = compute_latent_heat(state.Ts_supply)
         qh_receiver = compute_latent_heat(state.Ts_receiver)
         
-        # Simplified condensation rates based on temperature differences
+        # Supply tank interface heat transfer (horizontal cylinder - use interface area)
+        from lh2sim.geometry import horizontal_cylinder_interface_area
+        S_supply = horizontal_cylinder_interface_area(
+            V=V_L_supply,
+            R=self.config.supply_tank.radius,
+            L=self.config.supply_tank.length_or_height
+        )
+        S_supply = max(S_supply, 0.1)  # Minimum area to avoid division by zero
+        
+        Q_dot_LS_supply, Q_dot_VS_supply, h_LS_supply, h_VS_supply = compute_interface_heat_flows(
+            T_liquid_bulk=T_L_supply,
+            T_vapor_bulk=T_v_supply,
+            Ts=state.Ts_supply,
+            dTs_dt=dTs_supply_dt,
+            rho_liquid=self.config.physics.rho_liquid,
+            rho_vapor=p_supply / (self.config.physics.R_vapor * T_v_supply),
+            kappa_liquid=self.config.physics.kappa_liquid,
+            kappa_vapor=self.config.physics.kappa_vapor,
+            cp_liquid=self.config.physics.c_liquid,
+            cp_vapor=self.config.physics.c_p_vapor,
+            cv_vapor=self.config.physics.c_v_vapor,
+            mu_liquid=self.config.physics.mu_liquid,
+            mu_vapor=self.config.physics.mu_vapor,
+            beta_liquid=self.config.physics.beta_liquid,
+            beta_vapor=self.config.physics.beta_vapor,
+            g=self.config.physics.g,
+            interface_area=S_supply,
+            n_liquid_nodes=self.config.physics.n_liquid_nodes,
+            n_vapor_nodes=self.config.physics.n_vapor_nodes,
+            tmin_liquid=self.config.physics.tmin_liquid,
+            tmin_vapor=self.config.physics.tmin_vapor,
+        )
+        
+        # Receiver tank interface heat transfer (vertical cylinder - use cross-section area)
+        Q_dot_LS_receiver, Q_dot_VS_receiver, h_LS_receiver, h_VS_receiver = compute_interface_heat_flows(
+            T_liquid_bulk=T_L_receiver,
+            T_vapor_bulk=T_v_receiver,
+            Ts=state.Ts_receiver,
+            dTs_dt=dTs_receiver_dt,
+            rho_liquid=self.config.physics.rho_liquid,
+            rho_vapor=p_receiver / (self.config.physics.R_vapor * T_v_receiver),
+            kappa_liquid=self.config.physics.kappa_liquid,
+            kappa_vapor=self.config.physics.kappa_vapor,
+            cp_liquid=self.config.physics.c_liquid,
+            cp_vapor=self.config.physics.c_p_vapor,
+            cv_vapor=self.config.physics.c_v_vapor,
+            mu_liquid=self.config.physics.mu_liquid,
+            mu_vapor=self.config.physics.mu_vapor,
+            beta_liquid=self.config.physics.beta_liquid,
+            beta_vapor=self.config.physics.beta_vapor,
+            g=self.config.physics.g,
+            interface_area=self.A_receiver,
+            n_liquid_nodes=self.config.physics.n_liquid_nodes,
+            n_vapor_nodes=self.config.physics.n_vapor_nodes,
+            tmin_liquid=self.config.physics.tmin_liquid,
+            tmin_vapor=self.config.physics.tmin_vapor,
+        )
+        
+        # Condensation rates from interface heat balance
         # Positive = condensation (vapor → liquid), negative = evaporation (liquid → vapor)
-        # For now, assume small condensation due to heat leaks
         if abs(qh_supply) > 1e-6:
-            J_cd_supply = -self.config.supply_tank.heat_leak_liquid / qh_supply  # Evaporation from heat leak
+            J_cd_supply = -(Q_dot_LS_supply + Q_dot_VS_supply) / qh_supply
         else:
             J_cd_supply = 0.0
             
         if abs(qh_receiver) > 1e-6:
-            J_cd_receiver = -self.config.receiver_tank.heat_leak_liquid / qh_receiver  # Evaporation from heat leak
+            J_cd_receiver = -(Q_dot_LS_receiver + Q_dot_VS_receiver) / qh_receiver
         else:
             J_cd_receiver = 0.0
+        
+        # Receiver tank wall heat transfer (if wall thermal mass enabled)
+        if self.config.receiver_tank.wall_mass > 0:
+            Q_dot_WL_receiver, Q_dot_WV_receiver = compute_wall_heat_transfer(
+                T_wall=state.Tw_receiver,
+                T_liquid_bulk=T_L_receiver,
+                T_vapor_bulk=T_v_receiver,
+                rho_liquid=self.config.physics.rho_liquid,
+                rho_vapor=p_receiver / (self.config.physics.R_vapor * T_v_receiver),
+                kappa_liquid=self.config.physics.kappa_liquid,
+                kappa_vapor=self.config.physics.kappa_vapor,
+                mu_liquid=self.config.physics.mu_liquid,
+                mu_vapor=self.config.physics.mu_vapor,
+                beta_liquid=self.config.physics.beta_liquid,
+                beta_vapor=self.config.physics.beta_vapor,
+                Pr_liquid=self.config.physics.Pr_liquid,
+                Pr_vapor=self.config.physics.Pr_vapor,
+                g=self.config.physics.g,
+                tank_height=self.config.receiver_tank.length_or_height,
+                liquid_height=h_L_receiver,
+                tank_radius=self.config.receiver_tank.radius,
+                tank_cross_section_area=self.A_receiver,
+            )
+            
+            # Environmental heat leak to wall
+            Q_dot_env_receiver = compute_environmental_heat_leak(V_L_receiver)
+            
+            # Wall temperature derivative
+            dTw_receiver_dt = compute_wall_temperature_derivative(
+                T_wall=state.Tw_receiver,
+                Q_dot_environment=Q_dot_env_receiver,
+                Q_dot_to_liquid=Q_dot_WL_receiver,
+                Q_dot_to_vapor=Q_dot_WV_receiver,
+                wall_mass=self.config.receiver_tank.wall_mass,
+                wall_specific_heat=self.config.physics.wall_specific_heat,
+            )
+        else:
+            # No wall thermal mass - use direct heat leaks
+            Q_dot_WL_receiver = self.config.receiver_tank.heat_leak_liquid
+            Q_dot_WV_receiver = self.config.receiver_tank.heat_leak_vapor
+            dTw_receiver_dt = 0.0
 
         # ---------------------------
         # Vent flows (vapor vented to atmosphere)
@@ -590,30 +708,34 @@ class Simulator:
         u_L_transfer = self.config.physics.c_liquid * T_L_supply
         u_v_boil = self.config.physics.c_v_vapor * T_v_supply  # Vapor from vaporizer
         
-        # Supply tank
+        # Supply tank (no wall thermal mass - use simple heat leaks)
         dU_L_supply_dt = (
             -mdot_transfer * u_L_transfer
             - J_vap * u_L_transfer  # Liquid to vaporizer
             + J_cd_supply * u_L_transfer  # Condensation adds liquid energy
-            + self.config.supply_tank.heat_leak_liquid
+            + Q_dot_LS_supply  # Heat from interface
+            + self.config.supply_tank.heat_leak_liquid  # External heat leak
         )
         
         dU_v_supply_dt = (
             state.J_boil * (u_v_boil + qh_supply)  # Vaporizer adds vapor with latent heat
             - J_cd_supply * qh_supply  # Evaporation uses latent heat
-            + self.config.supply_tank.heat_leak_vapor
+            + Q_dot_VS_supply  # Heat from interface
+            + self.config.supply_tank.heat_leak_vapor  # External heat leak
         )
 
-        # Receiver tank
+        # Receiver tank (with wall heat transfer)
         dU_L_receiver_dt = (
             mdot_transfer * u_L_transfer
             + J_cd_receiver * u_L_transfer  # Condensation adds liquid energy
-            + self.config.receiver_tank.heat_leak_liquid
+            + Q_dot_LS_receiver  # Heat from interface
+            + Q_dot_WL_receiver  # Heat from wall
         )
         
         dU_v_receiver_dt = (
             -J_cd_receiver * qh_receiver  # Evaporation uses latent heat
-            + self.config.receiver_tank.heat_leak_vapor
+            + Q_dot_VS_receiver  # Heat from interface
+            + Q_dot_WV_receiver  # Heat from wall
         )
 
         # Return derivatives in same order as state vector
@@ -629,6 +751,7 @@ class Simulator:
                 dU_v_receiver_dt,
                 dTs_supply_dt,
                 dTs_receiver_dt,
+                dTw_receiver_dt,
                 dm_vaporizer_dt,
                 dJ_boil_dt,
                 dJ_transfer_dt,

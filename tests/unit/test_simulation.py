@@ -26,6 +26,7 @@ class TestSimulationState:
             U_v_receiver=5e4,
             Ts_supply=20.0,
             Ts_receiver=20.0,
+            Tw_receiver=300.0,
             m_vaporizer=0.0,
             J_boil=0.0,
             J_transfer=0.0,
@@ -33,6 +34,7 @@ class TestSimulationState:
         assert state.m_L_supply == 1000.0
         assert state.m_v_receiver == 5.0
         assert state.Ts_supply == 20.0
+        assert state.Tw_receiver == 300.0
         assert state.m_vaporizer == 0.0
     
     def test_to_array_conversion(self):
@@ -48,25 +50,28 @@ class TestSimulationState:
             U_v_receiver=5e4,
             Ts_supply=20.0,
             Ts_receiver=20.0,
+            Tw_receiver=300.0,
             m_vaporizer=0.0,
             J_boil=0.0,
             J_transfer=0.0,
         )
         arr = state.to_array()
         assert isinstance(arr, np.ndarray)
-        assert len(arr) == 13  # Updated to 13 state variables
+        assert len(arr) == 14  # Updated to 14 state variables (added Tw_receiver)
         assert arr[0] == 1000.0
         assert arr[7] == 5e4
         assert arr[8] == 20.0  # Ts_supply
-        assert arr[12] == 0.0  # J_transfer
+        assert arr[10] == 300.0  # Tw_receiver
+        assert arr[13] == 0.0  # J_transfer
     
     def test_from_array_conversion(self):
         """Test creating state from array."""
-        arr = np.array([1000.0, 10.0, 100.0, 5.0, 1e7, 1e5, 1e6, 5e4, 20.0, 20.0, 0.0, 0.0, 0.0])
+        arr = np.array([1000.0, 10.0, 100.0, 5.0, 1e7, 1e5, 1e6, 5e4, 20.0, 20.0, 300.0, 0.0, 0.0, 0.0])
         state = SimulationState.from_array(arr)
         assert state.m_L_supply == 1000.0
         assert state.U_v_receiver == 5e4
         assert state.Ts_supply == 20.0
+        assert state.Tw_receiver == 300.0
         assert state.J_transfer == 0.0
     
     def test_roundtrip_conversion(self):
@@ -82,6 +87,7 @@ class TestSimulationState:
             U_v_receiver=5e4,
             Ts_supply=20.0,
             Ts_receiver=20.0,
+            Tw_receiver=300.0,
             m_vaporizer=0.0,
             J_boil=0.0,
             J_transfer=0.0,
@@ -91,6 +97,7 @@ class TestSimulationState:
         assert reconstructed.m_L_supply == original.m_L_supply
         assert reconstructed.U_v_receiver == original.U_v_receiver
         assert reconstructed.Ts_supply == original.Ts_supply
+        assert reconstructed.Tw_receiver == original.Tw_receiver
         assert reconstructed.J_transfer == original.J_transfer
         arr = original.to_array()
         restored = SimulationState.from_array(arr)

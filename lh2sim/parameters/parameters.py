@@ -109,6 +109,10 @@ class PhysicsParameters:
         n_vapor_nodes: Number of vapor boundary layer nodes (for multi-node energy balance)
         tmin_liquid: Minimum time scale for liquid boundary layer [s]
         tmin_vapor: Minimum time scale for vapor boundary layer [s]
+        wall_specific_heat: Wall material specific heat [J/kg/K]
+        wall_initial_temperature: Initial wall temperature [K]
+        beta_liquid: Liquid thermal expansion coefficient [1/K]
+        beta_vapor: Vapor thermal expansion coefficient [1/K]
     """
 
     # Critical properties
@@ -138,10 +142,28 @@ class PhysicsParameters:
     tmin_liquid: float = 10.0  # s, minimum time scale for liquid boundary layer
     tmin_vapor: float = 10.0  # s, minimum time scale for vapor boundary layer
 
+    # Wall thermal properties (for receiver tank wall thermal mass)
+    wall_specific_heat: float = 500.0  # J/kg/K, typical for stainless steel
+    wall_initial_temperature: float = 300.0  # K, ambient temperature
+    
+    # Thermal expansion coefficients (for natural convection calculations)
+    beta_liquid: float = 0.025  # 1/K, typical for LH2
+    beta_vapor: float = 1.0 / 20.0  # 1/K, ~1/T for ideal gas at 20K
+
     @property
     def c_p_vapor(self) -> float:
         """Vapor specific heat at constant pressure [J/kg/K]."""
         return self.c_v_vapor + self.R_vapor
+    
+    @property
+    def Pr_liquid(self) -> float:
+        """Liquid Prandtl number [-]."""
+        return self.mu_liquid * self.c_liquid / self.kappa_liquid
+    
+    @property
+    def Pr_vapor(self) -> float:
+        """Vapor Prandtl number [-]."""
+        return self.mu_vapor * self.c_p_vapor / self.kappa_vapor
 
     def __post_init__(self):
         """Validate physical parameters."""
