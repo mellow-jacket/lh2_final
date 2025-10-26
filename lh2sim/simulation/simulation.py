@@ -31,15 +31,22 @@ class SimulationState:
     """
     State vector for LH2 transfer simulation.
 
-    For a simplified two-tank system:
+    For a two-tank system with vaporizer and transfer dynamics:
     - Each tank has liquid mass and vapor mass
     - Each tank has liquid internal energy and vapor internal energy
+    - Interface/surface temperatures for phase equilibrium
+    - Vaporizer state (mass accumulator and boil-off flow)
+    - Transfer flow with time lag
 
-    This is a simplified state for initial implementation.
-    Full implementation would include:
-    - Wall temperatures
-    - Multi-zone discretization
-    - Interface temperatures
+    This is an enhanced state supporting:
+    - Basic energy balance with heat leaks
+    - Surface temperature dynamics
+    - Vaporizer dynamics (for pressure-driven mode)
+    - Transfer flow lag
+
+    Future enhancements could include:
+    - Multi-node discretization
+    - Wall thermal mass
 
     Attributes:
         m_L_supply: Liquid mass in supply tank [kg]
@@ -50,6 +57,11 @@ class SimulationState:
         U_v_supply: Vapor internal energy in supply tank [J]
         U_L_receiver: Liquid internal energy in receiver tank [J]
         U_v_receiver: Vapor internal energy in receiver tank [J]
+        Ts_supply: Interface/surface temperature in supply tank [K]
+        Ts_receiver: Interface/surface temperature in receiver tank [K]
+        m_vaporizer: Mass in vaporizer (for pressure-driven) [kg]
+        J_boil: Boil-off flow from vaporizer [kg/s]
+        J_transfer: Transfer flow with lag [kg/s]
     """
 
     m_L_supply: float
@@ -60,6 +72,11 @@ class SimulationState:
     U_v_supply: float
     U_L_receiver: float
     U_v_receiver: float
+    Ts_supply: float
+    Ts_receiver: float
+    m_vaporizer: float
+    J_boil: float
+    J_transfer: float
 
     def to_array(self) -> np.ndarray:
         """Convert state to numpy array for ODE solver."""
@@ -73,6 +90,11 @@ class SimulationState:
                 self.U_v_supply,
                 self.U_L_receiver,
                 self.U_v_receiver,
+                self.Ts_supply,
+                self.Ts_receiver,
+                self.m_vaporizer,
+                self.J_boil,
+                self.J_transfer,
             ]
         )
 
@@ -88,6 +110,11 @@ class SimulationState:
             U_v_supply=arr[5],
             U_L_receiver=arr[6],
             U_v_receiver=arr[7],
+            Ts_supply=arr[8],
+            Ts_receiver=arr[9],
+            m_vaporizer=arr[10],
+            J_boil=arr[11],
+            J_transfer=arr[12],
         )
 
 
@@ -268,6 +295,29 @@ class Simulator:
         U_L_receiver = m_L_receiver * u_L_receiver
         U_v_receiver = m_v_receiver * u_v_receiver
 
+        # Initialize surface temperatures using Osipov correlation
+        from lh2sim.simulation.energy_balance import compute_surface_temperature
+
+        Ts_supply = compute_surface_temperature(
+            p_supply,
+            self.config.physics.T_critical,
+            self.config.physics.p_critical,
+            self.config.physics.lambda_,
+        )
+        Ts_receiver = compute_surface_temperature(
+            p_receiver,
+            self.config.physics.T_critical,
+            self.config.physics.p_critical,
+            self.config.physics.lambda_,
+        )
+
+        # Initialize vaporizer state (for pressure-driven mode)
+        m_vaporizer = 0.0  # Start empty
+        J_boil = 0.0  # No boil-off initially
+
+        # Initialize transfer flow (starts at zero)
+        J_transfer = 0.0
+
         return SimulationState(
             m_L_supply=m_L_supply,
             m_v_supply=m_v_supply,
@@ -277,18 +327,23 @@ class Simulator:
             U_v_supply=U_v_supply,
             U_L_receiver=U_L_receiver,
             U_v_receiver=U_v_receiver,
+            Ts_supply=Ts_supply,
+            Ts_receiver=Ts_receiver,
+            m_vaporizer=m_vaporizer,
+            J_boil=J_boil,
+            J_transfer=J_transfer,
         )
 
     def _derivatives(self, t: float, y: np.ndarray) -> np.ndarray:
         """
-        Compute time derivatives for ODE system.
+        Compute time derivatives for ODE system with enhanced energy balance.
 
-        This is a simplified implementation focusing on mass transfer.
-        Full implementation would include:
-        - Detailed heat transfer
-        - Multi-zone discretization
-        - Wall thermal dynamics
-        - Interface dynamics
+        Includes:
+        - Mass transfer with transfer flow lag
+        - Vaporizer dynamics (for pressure-driven mode)
+        - Surface temperature dynamics
+        - Phase change (condensation/evaporation) at interfaces
+        - Improved energy balance with latent heat terms
 
         Args:
             t: Current time [s]
@@ -297,6 +352,13 @@ class Simulator:
         Returns:
             Time derivatives dy/dt
         """
+        # Import energy balance helpers
+        from lh2sim.simulation.energy_balance import (
+            compute_surface_temperature,
+            compute_latent_heat,
+            compute_condensation_rate,
+        )
+
         # Parse state
         state = SimulationState.from_array(y)
 
@@ -307,7 +369,6 @@ class Simulator:
         V_v_supply = V_supply - V_L_supply
 
         # Approximate temperatures from internal energies
-        # T = U / (m * c_p) for simplified energy balance
         if state.m_L_supply > 1e-6:
             T_L_supply = state.U_L_supply / (state.m_L_supply * self.config.physics.c_liquid)
         else:
@@ -329,8 +390,10 @@ class Simulator:
         V_L_receiver = state.m_L_receiver / self.config.physics.rho_liquid if state.m_L_receiver > 0 else 0
         V_v_receiver = V_receiver - V_L_receiver
 
-        # Note: T_L_receiver would be computed here but is not currently needed
-        # If needed in future: T_L_receiver = U_L_receiver / (m_L_receiver * c_liquid)
+        if state.m_L_receiver > 1e-6:
+            T_L_receiver = state.U_L_receiver / (state.m_L_receiver * self.config.physics.c_liquid)
+        else:
+            T_L_receiver = self.config.receiver_tank.initial_liquid_temp
 
         if state.m_v_receiver > 1e-6:
             T_v_receiver = state.U_v_receiver / (state.m_v_receiver * self.config.physics.c_v_vapor)
@@ -350,7 +413,7 @@ class Simulator:
                 V=V_L_receiver, R=self.config.receiver_tank.radius, L=self.config.receiver_tank.length_or_height
             )
 
-        # Get control outputs (different signatures for pressure vs pump driven)
+        # Get control outputs
         ET_fill_complete = h_L_receiver >= (0.99 * self.config.receiver_tank.length_or_height)
 
         if self.config.transfer.mode == "pressure_driven":
@@ -367,39 +430,144 @@ class Simulator:
                 ET_fill_complete=ET_fill_complete,
             )
 
-        # Compute transfer flow rate
+        # ---------------------------
+        # Vaporizer dynamics (pressure-driven mode)
+        # ---------------------------
         if self.config.transfer.mode == "pressure_driven":
-            # Pressure-driven flow
-            CA = self.config.transfer.transfer_valve_area * controls.lambda_E
+            # Vaporizer inlet flow (from supply tank liquid)
+            p_atm = 101325.0  # Pa
             rho_L = self.config.physics.rho_liquid
-            mdot_transfer = gas_flow(
-                CA=CA, rho=rho_L, P1=p_supply, P2=p_receiver, gamma=self.config.physics.gamma_vapor
+            c_vap = self.config.transfer.vaporizer_coefficient
+            
+            # J_vap = c_vap * lambda_V * sqrt(2 * rho_L * (p_supply - p_atm))
+            delta_p_vap = max(0, p_supply - p_atm)
+            J_vap = abs(c_vap * controls.lambda_V * np.sqrt(2 * rho_L * delta_p_vap))
+            
+            # Vaporizer boil-off dynamics
+            if state.m_vaporizer <= 0:
+                J_boil_setpoint = 0.0
+                J_boil = max(0, state.J_boil)
+                dm_vaporizer_dt = max(0, J_vap - J_boil)
+            else:
+                J_boil_setpoint = J_vap
+                dm_vaporizer_dt = J_vap - state.J_boil
+            
+            # Boil-off flow lag with time constant
+            tau_vap = self.config.transfer.vaporizer_time_constant
+            dJ_boil_dt = (J_boil_setpoint - state.J_boil) / tau_vap
+        else:
+            # No vaporizer in pump mode
+            J_vap = 0.0
+            J_boil_setpoint = 0.0
+            dm_vaporizer_dt = 0.0
+            dJ_boil_dt = 0.0
+
+        # ---------------------------
+        # Transfer flow with lag
+        # ---------------------------
+        if self.config.transfer.mode == "pressure_driven":
+            # Pressure-driven flow (instantaneous setpoint)
+            CA = self.config.transfer.transfer_valve_area * controls.lambda_E
+            J_transfer_setpoint = gas_flow(
+                CA=CA,
+                rho=rho_L,
+                P1=p_supply,
+                P2=p_receiver,
+                gamma=self.config.physics.gamma_vapor,
             )
         else:  # pump_driven
             # Pump-driven flow (volumetric flow rate * density)
             Q_pump = self.config.transfer.pump_flow_rate
-            # For pump-driven, controls.lambda_E represents pump fraction
-            mdot_transfer = Q_pump * self.config.physics.rho_liquid * controls.lambda_E
+            J_transfer_setpoint = Q_pump * self.config.physics.rho_liquid * controls.lambda_E
 
-        # Mass balance derivatives (simplified - no evaporation/condensation yet)
-        dm_L_supply_dt = -mdot_transfer  # Loses liquid
-        dm_v_supply_dt = 0.0  # Simplified - no phase change
-        dm_L_receiver_dt = mdot_transfer  # Gains liquid
-        dm_v_receiver_dt = 0.0  # Simplified - no phase change
+        # Apply transfer flow lag
+        tau_tr = self.config.transfer.transfer_time_constant
+        dJ_transfer_dt = (J_transfer_setpoint - state.J_transfer) / tau_tr
 
-        # Energy balance derivatives with heat leaks
-        # Transfer term: specific internal energy of liquid being transferred
-        u_transfer = self.config.physics.c_liquid * T_L_supply
+        # Actual transfer flow is the lagged value
+        mdot_transfer = state.J_transfer
 
-        # Supply tank energy balance
-        dU_L_supply_dt = -mdot_transfer * u_transfer + self.config.supply_tank.heat_leak_liquid
-        dU_v_supply_dt = self.config.supply_tank.heat_leak_vapor
+        # ---------------------------
+        # Surface temperature dynamics
+        # ---------------------------
+        # Compute equilibrium surface temperatures from current pressures
+        Ts_supply_eq = compute_surface_temperature(
+            p_supply, self.config.physics.T_critical, self.config.physics.p_critical, self.config.physics.lambda_
+        )
+        Ts_receiver_eq = compute_surface_temperature(
+            p_receiver, self.config.physics.T_critical, self.config.physics.p_critical, self.config.physics.lambda_
+        )
 
-        # Receiver tank energy balance
-        dU_L_receiver_dt = mdot_transfer * u_transfer + self.config.receiver_tank.heat_leak_liquid
-        dU_v_receiver_dt = self.config.receiver_tank.heat_leak_vapor
+        # Surface temperature follows equilibrium with time lag
+        tmin_L = self.config.physics.tmin_liquid
+        dTs_supply_dt = (Ts_supply_eq - state.Ts_supply) / tmin_L
+        dTs_receiver_dt = (Ts_receiver_eq - state.Ts_receiver) / tmin_L
 
-        # Return derivatives
+        # ---------------------------
+        # Phase change (condensation/evaporation)
+        # ---------------------------
+        # Simplified model: heat leak causes evaporation/condensation
+        # Full model would use interface heat transfer calculations
+        
+        # Latent heat at interface temperatures
+        qh_supply = compute_latent_heat(state.Ts_supply)
+        qh_receiver = compute_latent_heat(state.Ts_receiver)
+        
+        # Simplified condensation rates based on temperature differences
+        # Positive = condensation (vapor → liquid), negative = evaporation (liquid → vapor)
+        # For now, assume small condensation due to heat leaks
+        if abs(qh_supply) > 1e-6:
+            J_cd_supply = -self.config.supply_tank.heat_leak_liquid / qh_supply  # Evaporation from heat leak
+        else:
+            J_cd_supply = 0.0
+            
+        if abs(qh_receiver) > 1e-6:
+            J_cd_receiver = -self.config.receiver_tank.heat_leak_liquid / qh_receiver  # Evaporation from heat leak
+        else:
+            J_cd_receiver = 0.0
+
+        # ---------------------------
+        # Mass balance derivatives
+        # ---------------------------
+        dm_L_supply_dt = -mdot_transfer - J_vap + J_cd_supply
+        dm_v_supply_dt = state.J_boil + J_vap - J_cd_supply  # Vaporizer adds vapor
+        dm_L_receiver_dt = mdot_transfer + J_cd_receiver
+        dm_v_receiver_dt = -J_cd_receiver
+
+        # ---------------------------
+        # Energy balance derivatives
+        # ---------------------------
+        # Specific internal energies for transfer
+        u_L_transfer = self.config.physics.c_liquid * T_L_supply
+        u_v_boil = self.config.physics.c_v_vapor * T_v_supply  # Vapor from vaporizer
+        
+        # Supply tank
+        dU_L_supply_dt = (
+            -mdot_transfer * u_L_transfer
+            - J_vap * u_L_transfer  # Liquid to vaporizer
+            + J_cd_supply * u_L_transfer  # Condensation adds liquid energy
+            + self.config.supply_tank.heat_leak_liquid
+        )
+        
+        dU_v_supply_dt = (
+            state.J_boil * (u_v_boil + qh_supply)  # Vaporizer adds vapor with latent heat
+            - J_cd_supply * qh_supply  # Evaporation uses latent heat
+            + self.config.supply_tank.heat_leak_vapor
+        )
+
+        # Receiver tank
+        dU_L_receiver_dt = (
+            mdot_transfer * u_L_transfer
+            + J_cd_receiver * u_L_transfer  # Condensation adds liquid energy
+            + self.config.receiver_tank.heat_leak_liquid
+        )
+        
+        dU_v_receiver_dt = (
+            -J_cd_receiver * qh_receiver  # Evaporation uses latent heat
+            + self.config.receiver_tank.heat_leak_vapor
+        )
+
+        # Return derivatives in same order as state vector
         return np.array(
             [
                 dm_L_supply_dt,
@@ -410,6 +578,11 @@ class Simulator:
                 dU_v_supply_dt,
                 dU_L_receiver_dt,
                 dU_v_receiver_dt,
+                dTs_supply_dt,
+                dTs_receiver_dt,
+                dm_vaporizer_dt,
+                dJ_boil_dt,
+                dJ_transfer_dt,
             ]
         )
 

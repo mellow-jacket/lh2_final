@@ -255,6 +255,7 @@ class ScenarioConfig:
         transfer: Transfer control parameters
         t_final: Simulation end time [s]
         property_backend: Property calculation backend to use
+        use_multinode_energy_balance: Enable multi-node energy balance (experimental)
     """
 
     name: str
@@ -265,6 +266,7 @@ class ScenarioConfig:
     transfer: TransferParameters
     t_final: float
     property_backend: Literal["CoolProp", "polynomial"] = "CoolProp"
+    use_multinode_energy_balance: bool = False  # Enable experimental multi-node mode
 
     def __post_init__(self):
         """Validate complete scenario configuration."""

@@ -82,7 +82,11 @@ def compute_surface_temperature(p_vapor: float, T_c: float, p_c: float, lambda_:
     Returns:
         Surface temperature [K]
     """
-    return T_c * (p_vapor / p_c) ** (1.0 / lambda_)
+    # Clamp pressure to valid range to avoid numerical issues
+    p_ratio = max(1e-6, min(p_vapor / p_c, 10.0))  # Clamp to reasonable range
+    Ts = T_c * p_ratio ** (1.0 / lambda_)
+    # Clamp temperature to valid range for LH2
+    return np.clip(Ts, 13.804, T_c)
 
 
 def compute_latent_heat(Ts: float) -> float:
