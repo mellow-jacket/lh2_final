@@ -414,6 +414,94 @@ def create_pump_driven_scenario() -> ScenarioConfig:
     return config
 
 
+def create_single_tank_venting_scenario() -> ScenarioConfig:
+    """
+    Create a simplified single-tank venting scenario.
+    
+    A single tank starts 50% full at saturated equilibrium. When a vent valve
+    is opened, vapor (not liquid) vents to atmosphere, demonstrating energy balance
+    and heat transfer during depressurization.
+    
+    This is a simpler case than full tank-to-tank transfer, useful for:
+    - Studying energy balance during venting
+    - Understanding heat transfer and phase change
+    - Testing thermodynamic models
+    
+    Returns:
+        ScenarioConfig for single-tank venting (supply tank vents, receiver is dummy)
+    """
+    # Constants
+    bar_to_pa = 1e5
+    
+    # Main tank (vertical cylinder at 50% fill, saturated equilibrium)
+    main_tank = TankParameters(
+        name="Main Tank",
+        geometry="vertical_cylinder",
+        volume=10.0,  # m³ (medium-sized tank)
+        radius=1.0,  # m
+        length_or_height=10.0 / (np.pi * 1.0**2),  # H = V/A ≈ 3.18 m
+        initial_pressure=1.3 * bar_to_pa,  # Just below vent threshold
+        initial_liquid_temp=20.3,  # K (saturated)
+        initial_vapor_temp=20.3,  # K (saturated equilibrium)
+        initial_fill_fraction=0.5,  # 50% full as specified
+        max_working_pressure=5.0 * bar_to_pa,  # Conservative limit
+        vent_area=0.001,  # m² (moderate vent size)
+        heat_leak_liquid=1000.0,  # W (higher heat leak for visible effect in short time)
+        heat_leak_vapor=500.0,  # W
+    )
+    
+    # Dummy receiver tank (not used, but required by ScenarioConfig structure)
+    # Set it to be very large and initially full so it doesn't affect dynamics
+    dummy_tank = TankParameters(
+        name="Dummy",
+        geometry="vertical_cylinder",
+        volume=1000.0,  # Very large
+        radius=5.0,
+        length_or_height=1000.0 / (np.pi * 5.0**2),
+        initial_pressure=1.0 * bar_to_pa,  # Atmospheric
+        initial_liquid_temp=20.0,
+        initial_vapor_temp=20.0,
+        initial_fill_fraction=0.99,  # Nearly full (won't accept much flow)
+        max_working_pressure=10.0 * bar_to_pa,
+        vent_area=0.0,  # No venting
+        heat_leak_liquid=0.0,
+        heat_leak_vapor=0.0,
+    )
+    
+    # Physics parameters (default para-hydrogen)
+    physics = PhysicsParameters()
+    
+    # Transfer parameters - use pump mode with minimal flow to avoid vaporizer dynamics
+    # In pump mode, there's no vaporizer adding vapor to the supply tank
+    rho_liquid = physics.rho_liquid
+    transfer = TransferParameters(
+        mode="pump_driven",  # Use pump mode to avoid vaporizer
+        transfer_valve_area=0.0001,  # Not used in pump mode
+        pump_flow_rate=1e-6,  # Minimal transfer - focus on venting
+        pump_flow_slow=rho_liquid * 1e-6,  # Minimal
+        pump_flow_fast=rho_liquid * 1e-6,  # Minimal
+        pump_flow_topping=rho_liquid * 1e-6,  # Minimal
+        pipe_length=1.0,
+        pipe_diameter=0.01,
+        # Adjust thresholds so vent is active on supply tank
+        ET_vent_open_threshold=8.0 * bar_to_pa,  # Very high (dummy tank won't vent)
+        ET_vent_close_threshold=7.5 * bar_to_pa,
+        ST_vent_open_threshold=1.35 * bar_to_pa,  # Will open when pressure rises
+        ST_vent_close_threshold=1.25 * bar_to_pa,
+    )
+    
+    return ScenarioConfig(
+        name="Single Tank Venting",
+        description="Simplified venting case: 50% full tank at saturated equilibrium, venting to atmosphere",
+        supply_tank=main_tank,
+        receiver_tank=dummy_tank,
+        physics=physics,
+        transfer=transfer,
+        t_final=600.0,  # 10 minutes (reduced for stability)
+        property_backend="CoolProp",
+    )
+
+
 # Export key classes
 __all__ = [
     "TankParameters",
@@ -422,4 +510,5 @@ __all__ = [
     "ScenarioConfig",
     "create_trailer_to_dewar_scenario",
     "create_pump_driven_scenario",
+    "create_single_tank_venting_scenario",
 ]

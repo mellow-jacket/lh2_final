@@ -13,6 +13,7 @@ from lh2sim.parameters import (
     ScenarioConfig,
     create_trailer_to_dewar_scenario,
     create_pump_driven_scenario,
+    create_single_tank_venting_scenario,
 )
 
 
@@ -300,9 +301,38 @@ class TestScenarioFactories:
         # Should not raise any errors
         config1 = create_trailer_to_dewar_scenario()
         config2 = create_pump_driven_scenario()
+        config3 = create_single_tank_venting_scenario()
         
         # Verify they have reasonable values
         assert config1.t_final > 0
         assert config2.t_final > 0
+        assert config3.t_final > 0
         assert config1.supply_tank.volume > 0
         assert config2.supply_tank.volume > 0
+        assert config3.supply_tank.volume > 0
+    
+    def test_create_single_tank_venting_scenario(self):
+        """Test creating single-tank venting scenario."""
+        config = create_single_tank_venting_scenario()
+        
+        # Should be pump-driven mode to avoid vaporizer
+        assert config.transfer.mode == "pump_driven"
+        
+        # Main tank should be 50% full
+        assert config.supply_tank.initial_fill_fraction == 0.5
+        
+        # Main tank should be vertical cylinder
+        assert config.supply_tank.geometry == "vertical_cylinder"
+        
+        # Dummy tank should be very large
+        assert config.receiver_tank.volume > config.supply_tank.volume
+        
+        # Heat leak should be present
+        assert config.supply_tank.heat_leak_liquid > 0
+        assert config.supply_tank.heat_leak_vapor > 0
+        
+        # Vent threshold should be reasonable for LH2
+        assert 1e5 < config.transfer.ST_vent_open_threshold < 3e5  # 1-3 bar
+        
+        # Pump flow should be minimal (not used for transfer, just to satisfy validation)
+        assert config.transfer.pump_flow_rate < 0.001

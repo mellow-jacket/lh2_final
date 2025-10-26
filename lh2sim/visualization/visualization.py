@@ -507,6 +507,202 @@ def plot_summary_dashboard(
     return fig
 
 
+def plot_single_tank_venting(
+    result: SimulationResult,
+    tank_height: float,
+    pressure_limit: float,
+    figsize: Tuple[float, float] = (14, 10),
+    save_path: Optional[str] = None,
+) -> plt.Figure:
+    """
+    Plot comprehensive dashboard for single-tank venting scenario.
+    
+    Shows the evolution of a single tank (supply tank) during venting,
+    focusing on energy balance, heat transfer, and phase change.
+    
+    Parameters
+    ----------
+    result : SimulationResult
+        Simulation results to plot
+    tank_height : float
+        Tank height [m]
+    pressure_limit : float
+        Pressure limit for vent opening [Pa]
+    figsize : tuple of float, optional
+        Figure size in inches (width, height)
+    save_path : str, optional
+        Path to save the figure
+    
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        The created figure
+    """
+    fig = plt.figure(figsize=figsize)
+    gs = fig.add_gridspec(3, 3, hspace=0.35, wspace=0.35)
+    
+    time_min = result.time / 60.0  # Convert to minutes
+    
+    # Row 1: Level, Pressure, Temperature
+    # Tank level
+    ax1 = fig.add_subplot(gs[0, 0])
+    level_pct = (result.h_L_ST / tank_height) * 100
+    ax1.plot(time_min, level_pct, "b-", linewidth=2)
+    ax1.set_ylabel("Liquid Level [%]", fontsize=11)
+    ax1.set_xlabel("Time [min]", fontsize=11)
+    _safe_xlim(ax1, time_min)
+    ax1.set_ylim([0, 100])
+    ax1.axhline(y=50, color="gray", linestyle="--", linewidth=1, alpha=0.5, label="Initial 50%")
+    ax1.legend(loc="best", fontsize=9)
+    ax1.grid(True, alpha=0.3)
+    ax1.set_title("Tank Fill Level", fontsize=12, fontweight="bold")
+    
+    # Pressure with vent threshold
+    ax2 = fig.add_subplot(gs[0, 1])
+    ax2.plot(time_min, result.p_v_ST / 1e5, "b-", linewidth=2, label="Tank Pressure")
+    ax2.axhline(
+        y=pressure_limit / 1e5,
+        color="red",
+        linestyle="--",
+        linewidth=1.5,
+        label=f"Vent Opens ({pressure_limit/1e5:.2f} bar)",
+    )
+    ax2.set_ylabel("Pressure [bar]", fontsize=11)
+    ax2.set_xlabel("Time [min]", fontsize=11)
+    _safe_xlim(ax2, time_min)
+    ax2.legend(loc="best", fontsize=9)
+    ax2.grid(True, alpha=0.3)
+    ax2.set_title("Tank Pressure", fontsize=12, fontweight="bold")
+    
+    # Temperatures
+    ax3 = fig.add_subplot(gs[0, 2])
+    ax3.plot(time_min, result.T_L_ST, "b-", linewidth=2, label="Liquid")
+    ax3.plot(time_min, result.T_v_ST, "r--", linewidth=2, label="Vapor")
+    ax3.set_ylabel("Temperature [K]", fontsize=11)
+    ax3.set_xlabel("Time [min]", fontsize=11)
+    _safe_xlim(ax3, time_min)
+    ax3.legend(loc="best", fontsize=9)
+    ax3.grid(True, alpha=0.3)
+    ax3.set_title("Tank Temperatures", fontsize=12, fontweight="bold")
+    
+    # Row 2: Masses, Densities, Energy
+    # Masses (liquid and vapor)
+    ax4 = fig.add_subplot(gs[1, 0])
+    ax4.plot(time_min, result.m_L_ST, "b-", linewidth=2, label="Liquid")
+    ax4.plot(time_min, result.m_v_ST, "r--", linewidth=2, label="Vapor")
+    total_mass = result.m_L_ST + result.m_v_ST
+    ax4.plot(time_min, total_mass, "k:", linewidth=2, label="Total")
+    ax4.set_ylabel("Mass [kg]", fontsize=11)
+    ax4.set_xlabel("Time [min]", fontsize=11)
+    _safe_xlim(ax4, time_min)
+    ax4.legend(loc="best", fontsize=9)
+    ax4.grid(True, alpha=0.3)
+    ax4.set_title("Mass Distribution", fontsize=12, fontweight="bold")
+    
+    # Densities
+    ax5 = fig.add_subplot(gs[1, 1])
+    ax5.plot(time_min, result.rho_L_ST, "b-", linewidth=2, label="Liquid")
+    ax5.plot(time_min, result.rho_v_ST, "r--", linewidth=2, label="Vapor")
+    ax5.set_ylabel("Density [kg/m³]", fontsize=11)
+    ax5.set_xlabel("Time [min]", fontsize=11)
+    _safe_xlim(ax5, time_min)
+    ax5.legend(loc="best", fontsize=9)
+    ax5.grid(True, alpha=0.3)
+    ax5.set_title("Phase Densities", fontsize=12, fontweight="bold")
+    
+    # Internal energy
+    ax6 = fig.add_subplot(gs[1, 2])
+    # Convert to MJ for better readability
+    ax6.plot(time_min, result.U_L_ST / 1e6, "b-", linewidth=2, label="Liquid")
+    ax6.plot(time_min, result.U_v_ST / 1e6, "r--", linewidth=2, label="Vapor")
+    total_energy = (result.U_L_ST + result.U_v_ST) / 1e6
+    ax6.plot(time_min, total_energy, "k:", linewidth=2, label="Total")
+    ax6.set_ylabel("Internal Energy [MJ]", fontsize=11)
+    ax6.set_xlabel("Time [min]", fontsize=11)
+    _safe_xlim(ax6, time_min)
+    ax6.legend(loc="best", fontsize=9)
+    ax6.grid(True, alpha=0.3)
+    ax6.set_title("Internal Energy", fontsize=12, fontweight="bold")
+    
+    # Row 3: Mass loss, Vent flow, Statistics
+    # Mass loss (cumulative)
+    ax7 = fig.add_subplot(gs[2, 0])
+    initial_mass = total_mass[0]
+    mass_loss = initial_mass - total_mass
+    mass_loss_pct = (mass_loss / initial_mass) * 100
+    ax7.plot(time_min, mass_loss, "purple", linewidth=2, label="Mass vented")
+    ax7.set_ylabel("Mass Loss [kg]", fontsize=11)
+    ax7.set_xlabel("Time [min]", fontsize=11)
+    _safe_xlim(ax7, time_min)
+    ax7.legend(loc="best", fontsize=9)
+    ax7.grid(True, alpha=0.3)
+    ax7.set_title(f"Vented Mass (Total: {mass_loss[-1]:.2f} kg, {mass_loss_pct[-1]:.2f}%)", 
+                  fontsize=12, fontweight="bold")
+    
+    # Vent flow rate (approximated from mass change)
+    ax8 = fig.add_subplot(gs[2, 1])
+    if len(time_min) > 1:
+        dt = np.diff(result.time)
+        dm = -np.diff(total_mass)
+        vent_rate = dm / dt
+        # Convert to kg/hr
+        vent_rate_hr = vent_rate * 3600
+        ax8.plot(time_min[:-1], vent_rate_hr, "purple", linewidth=2)
+    ax8.set_ylabel("Vent Rate [kg/hr]", fontsize=11)
+    ax8.set_xlabel("Time [min]", fontsize=11)
+    _safe_xlim(ax8, time_min)
+    ax8.grid(True, alpha=0.3)
+    ax8.set_title("Instantaneous Vent Flow Rate", fontsize=12, fontweight="bold")
+    
+    # Summary statistics (text box)
+    ax9 = fig.add_subplot(gs[2, 2])
+    ax9.axis("off")
+    
+    # Calculate statistics
+    final_time = result.time[-1]
+    initial_level = level_pct[0]
+    final_level = level_pct[-1]
+    level_change = final_level - initial_level
+    initial_pressure = result.p_v_ST[0] / 1e5
+    final_pressure = result.p_v_ST[-1] / 1e5
+    pressure_change = final_pressure - initial_pressure
+    initial_temp_L = result.T_L_ST[0]
+    final_temp_L = result.T_L_ST[-1]
+    temp_change = final_temp_L - initial_temp_L
+    
+    summary_text = (
+        f"Summary Statistics\n"
+        f"{'='*30}\n\n"
+        f"Simulation Time: {final_time/60:.1f} min\n\n"
+        f"Level Change:\n"
+        f"  {initial_level:.1f}% → {final_level:.1f}% ({level_change:+.1f}%)\n\n"
+        f"Pressure Change:\n"
+        f"  {initial_pressure:.2f} → {final_pressure:.2f} bar ({pressure_change:+.2f})\n\n"
+        f"Temperature Change:\n"
+        f"  {initial_temp_L:.2f} → {final_temp_L:.2f} K ({temp_change:+.2f})\n\n"
+        f"Mass Vented:\n"
+        f"  {mass_loss[-1]:.2f} kg ({mass_loss_pct[-1]:.2f}%)\n\n"
+        f"Avg Vent Rate:\n"
+        f"  {mass_loss[-1]/(final_time/3600):.1f} kg/hr"
+    )
+    
+    ax9.text(
+        0.05, 0.95, summary_text,
+        transform=ax9.transAxes,
+        fontsize=10,
+        verticalalignment="top",
+        bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.3),
+        family="monospace",
+    )
+    
+    fig.suptitle("Single Tank Venting Dashboard", fontsize=16, fontweight="bold", y=0.995)
+    
+    if save_path:
+        plt.savefig(save_path, dpi=300, bbox_inches="tight")
+    
+    return fig
+
+
 __all__ = [
     "plot_tank_levels",
     "plot_pressures",
@@ -514,4 +710,5 @@ __all__ = [
     "plot_masses",
     "plot_densities",
     "plot_summary_dashboard",
+    "plot_single_tank_venting",
 ]

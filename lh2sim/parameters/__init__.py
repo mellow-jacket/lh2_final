@@ -20,6 +20,7 @@ from .parameters import (
     ScenarioConfig,
     create_trailer_to_dewar_scenario,
     create_pump_driven_scenario,
+    create_single_tank_venting_scenario,
 )
 
 __all__ = [
@@ -29,4 +30,5 @@ __all__ = [
     "ScenarioConfig",
     "create_trailer_to_dewar_scenario",
     "create_pump_driven_scenario",
+    "create_single_tank_venting_scenario",
 ]
